@@ -35,10 +35,12 @@ class ircverbindung:
         
         self.so = socket() 
         self.so.connect(server)
+        self.so.send('USER %s * * :%s\r\n' % (ident, realname))
+        print 'DEBUG:  >> USER %s * * :%s' % (ident, realname)
         self.so.send('NICK %s\r\n' % nickname)
-        print 'DEBUG: >> NICK %s' % nickname
-        self.so.send('USER %s * * :%s' % (ident, realname)
-        print 'DEBUG: >> USER % * * :%s' % (ident, realname)
+        print 'DEBUG:  >> NICK %s' % nickname
+        self.so.send('JOIN #tiax\r\n')
+        print 'DEBUG: >> JOIN #tiax'
         self.verarbeite_reingehendes()
 
     def verarbeite_reingehendes(self):
@@ -51,26 +53,39 @@ class ircverbindung:
         als Spezialfall wird hier gleich PING behandelt, denn da sollte tunlichst sofort PONG zurück geschickt werden.'''
         
         while 1:
-            self.lesebuffer = so.recv(1024)
+            self.lesebuffer = self.so.recv(1024)
             temp = self.lesebuffer.split('\n')
             self.lesebuffer = temp.pop()
 
             for zeile in temp:
                 zeile = zeile.rstrip().split()
+                print 'DEBUG: <<%s' % zeile
                 if zeile[0] == 'PING':
                     print 'DEBUG: >> PONG an den Server geschickt'
                     self.so.send('PONG %s\r\n' % zeile[1])
                 else:
-                    if callable(getattr(self,'on_%s' % zeile[1]):
+                    try:
                         befehl = getattr(self,'on_%s' % zeile[1])
                         print 'DEBUG: %s wird aufgerufen' % befehl
                         befehl(' '.join(zeile)) # wenn wir das als liste übergeben, kriegen wir nachher Probleme weil das mehr als 1 Argument wird
+                    except AttributeError:
+                        self.on_UNBEKANNT(' '.join(zeile))
 
-    def send(self,rausgehendes):
+    def rawsend(self,rausgehendes):
         '''erwartet:
         das, was geschickt werden soll
         gibt auch nix zurück, erspart uns aber die lästige Fehlersuche, wenn die Zeichen am Zeilenende vergessen worden sind.'''
         self.so.send('%s\r\n' % rausgehendes)
 
+    def join(self,channel,key=''):
+        self.rawsend('JOIN %s %s' % (channel, key))
+        
+    def on_001(self,zeile):
+        self.join('#tiax')
+
+    def on_PRIVMSG(self,zeile):
+        if zeile.split()[3].lstrip(':') == 'die':
+            self.rawsend('quit')
+    
     def on_UNBEKANNT(self,zeile):
-        print 'DEBUG: <<%s' % zeile
+        pass
