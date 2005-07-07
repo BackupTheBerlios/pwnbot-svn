@@ -39,8 +39,7 @@ class ircverbindung:
         print 'DEBUG:  >> USER %s * * :%s' % (ident, realname)
         self.so.send('NICK %s\r\n' % nickname)
         print 'DEBUG:  >> NICK %s' % nickname
-        self.so.send('JOIN #tiax\r\n')
-        print 'DEBUG: >> JOIN #tiax'
+        self.join('#tiax') # DEBBUG-REMOVEME
         self.verarbeite_reingehendes()
 
     def verarbeite_reingehendes(self):
@@ -78,7 +77,12 @@ class ircverbindung:
         self.so.send('%s\r\n' % rausgehendes)
 
     def join(self,channel,key=''):
+        print 'DEBUG: >> Joine %s' % channel
         self.rawsend('JOIN %s %s' % (channel, key))
+        
+    def msg(self,ziel,nachricht):
+        print 'DEBUG: >> PRIVMSG an %s: %s' % (ziel, nachricht)
+        self.rawsend('PRIVMSG %S :%s' % (ziel, nachricht))
         
     def on_001(self,zeile):
         self.join('#tiax')
