@@ -66,9 +66,9 @@ class ircverbindung:
                     try:
                         befehl = getattr(self,'on_%s' % zeile[1])
                         print 'DEBUG: %s wird aufgerufen' % befehl
-                        befehl(' '.join(zeile)) # wenn wir das als liste übergeben, kriegen wir nachher Probleme weil das mehr als 1 Argument wird
+                        befehl(zeile)
                     except AttributeError:
-                        self.on_UNBEKANNT(' '.join(zeile))
+                        self.on_UNBEKANNT(zeile)
 
     def rawsend(self,rausgehendes):
         '''erwartet:
@@ -84,12 +84,12 @@ class ircverbindung:
         print 'DEBUG: >> PRIVMSG an %s: %s' % (ziel, nachricht)
         self.rawsend('PRIVMSG %S :%s' % (ziel, nachricht))
         
-    def on_001(self,zeile):
+    def on_001(self,*args):
         self.join('#tiax')
 
-    def on_PRIVMSG(self,zeile):
-        if zeile.split()[3].lstrip(':') == 'die':
+    def on_PRIVMSG(self,*args):
+        if args()[3].lstrip(':') == 'die':
             self.rawsend('quit')
     
-    def on_UNBEKANNT(self,zeile):
+    def on_UNBEKANNT(self,*args):
         pass
