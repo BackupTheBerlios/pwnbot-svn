@@ -1,0 +1,10 @@
+pwnbot 
+------
+
+Der pwnbot ist ein modular aufgebauter Chatbot, dessen geplanter Focus auf IRC
+liegt, jedoch in Zukunft auch auf XMPP (Jabber) mit MUC ausgeweitet werden 
+kann.
+
+Der Aufbau ist möglichst simpel und der Kern des Scripts enhält nur das aller-
+nötigste, der Rest wird über Module gemacht. Eine Unterscheidung zwischen Mo-
+dulen und Scripten wird es keine geben.
