@@ -43,7 +43,7 @@ class ircverbindung:
         print 'DEBUG:  >> USER %s * * :%s' % (ident, realname)
         self.so.send('NICK %s\r\n' % nickname)
         print 'DEBUG:  >> NICK %s' % nickname
-        self.join('#tiax') # DEBBUG-REMOVEME
+        self.join('#the-dominion') # DEBBUG-REMOVEME
         self._verarbeite_reingehendes()
 
     def _verarbeite_reingehendes(self):
@@ -97,20 +97,19 @@ class ircverbindung:
         self.rawsend('PRIVMSG %S :%s' % (ziel, nachricht))
 
     def quit(self,quitmessage):
+        print 'DEBUG: <> Beende'
         self.rawsend('quit :%s' % quitmessage)
         self.so.close()
 
     def on_001(self,*args):
         '''die IRC Verbindung ist gerade hergestellt worden'''
-        self.join('#tiax')
+        self.join('#the-dominion')
 
     def on_PRIVMSG(self,*args):
         '''bearbeitet eingehende Nachrichten'''
         print args
-        if 'die' in args:
-            self.rawsend('quit')
-        #if args[3].lstrip(':') == 'die':
-        #    self.rawsend('quit')
+        if len(args[0]) >= 3 and args[0][3].lstrip(':') == 'die':
+            self.quit('diediedie')
 
     def on_UNBEKANNT(self,*args):
         '''verarbeitet alles, was nicht sonstwie verarbeitet werden kann'''
