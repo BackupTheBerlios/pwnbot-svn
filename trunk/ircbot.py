@@ -12,7 +12,7 @@
 
 # was an modulen gebraucht wird.
 import socket # für die IRC-Verbindung
-
+from sys import exit
 # es gibt mehrere Klassen. Die Verbindung als solche ist wohl die wichtigste und
 # wird als erstes aufgerufen. Sie stellt die Verbindung her und kümmert sich um
 # alles, was rein kommt. Nach der Verarbeitung der rohen Zeile wird ggf. eine
@@ -25,25 +25,31 @@ class ircverbindung:
         self.lesebuffer = '' # wir brauchen einen leeren Buffer, in den geschrieben wird. Ein Buffer wird gebraucht, weil nicht alles sofort ankommt bei lag usw
         self.verbinde(server,nickname,ident,realname) # gleich am Anfang wird verbunden
 
+    ##### Grundlegendes
+
     def verbinde(self,server,nickname,ident=None,realname=None):
         '''stellt die Verbindung zum Server her
         erwartet:
-        server als tuple serverurl,port
-        nickname als string
+        server entweder als string (url) oder tuple (url, port)
+        nickname als liste von nicknames
         ident als string
         realname als string
 
         gibt nix zurück aber stellt erst die Verbindung zum IRC-Server her und ruft dann den Verarbeiter auf'''
+        self.nicknames = nickname
+        nickname = self.nicknames.pop(0)
         ident = ident or nickname
         realname = realname or nickname
         self.so = socket.socket()
-        self.so.connect(server)
+        try:
+            self.so.connect(server)
+        except TypeError:
+            self.so = so.connect((server,6667))
         # self.so.settimeout(5)
         self.so.send('USER %s * * :%s\r\n' % (ident, realname))
         print 'DEBUG:  >> USER %s * * :%s' % (ident, realname)
         self.so.send('NICK %s\r\n' % nickname)
         print 'DEBUG:  >> NICK %s' % nickname
-        self.join('#the-dominion') # DEBBUG-REMOVEME
         self._verarbeite_reingehendes()
 
     def _verarbeite_reingehendes(self):
@@ -79,12 +85,15 @@ class ircverbindung:
                         befehl(zeile)
                     except AttributeError:
                         self.on_UNBEKANNT(zeile)
+
     def rawsend(self,rausgehendes):
         '''schickt Daten an den Server
         erwartet:
         das, was geschickt werden soll
         gibt auch nix zurück, erspart uns aber die lästige Fehlersuche, wenn die Zeichen am Zeilenende vergessen worden sind.'''
         self.so.send('%s\r\n' % rausgehendes)
+
+    ##### konkrete Befehle
 
     def join(self,channel,key=''):
         '''betritt Channel'''
@@ -100,6 +109,16 @@ class ircverbindung:
         print 'DEBUG: <> Beende'
         self.rawsend('quit :%s' % quitmessage)
         self.so.close()
+
+    ##### Events
+
+    def on_433(self,*args):
+        ''' der nickname ist bereits belegt'''
+        try:
+            neuernick = self.nicknames.pop(0)
+        except IndexError:
+            exit('Nicknames sind ausgegangen')
+        self.rawsend('NICK %s' % neuernick)
 
     def on_001(self,*args):
         '''die IRC Verbindung ist gerade hergestellt worden'''
