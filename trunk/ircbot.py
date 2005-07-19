@@ -86,10 +86,20 @@ class ircverbindung:
                 else:
                     try:
                         befehl = getattr(self,'on_%s' % zeile[1])
-                        print 'DEBUG: %s wird aufgerufen' % befehl
-                        befehl(zeile)
+                        befehl(self._chopit(zeile))
                     except AttributeError:
-                        self.on_UNBEKANNT(zeile)
+                        self.on_UNBEKANNT(self._chopit(zeile))
+
+    def _chopit(self, zeile):
+        ''' teilt reingehendes in ein Dictionary von Quelle, Event, Ziel und Inhalt auf'''
+        temp = {}
+        temp['quelle'] = zeile[0].lstrip(':')
+        temp['event'] = zeile[1]
+        temp['ziel'] = zeile[2]
+        if len(zeile) >= 4:
+            temp['inhalt'] = zeile[3:]
+            temp['inhalt'][0] = temp['inhalt'][0].lstrip(':')
+        return temp
 
     def rawsend(self,rausgehendes):
         '''schickt Daten an den Server
@@ -107,8 +117,8 @@ class ircverbindung:
 
     def msg(self,ziel,nachricht):
         '''schickt Nachrichten raus'''
-        print 'DEBUG: >> PRIVMSG an %s: %s' % (ziel, nachricht)
-        self.rawsend('PRIVMSG %S :%s' % (ziel, nachricht))
+        print 'Nachricht an %s: %s' % (ziel, nachricht)
+        self.rawsend('PRIVMSG %s :%s' % (ziel, nachricht))
 
     def quit(self,quitmessage):
         print 'DEBUG: <> Beende'
@@ -117,7 +127,7 @@ class ircverbindung:
 
     ##### Events
 
-    def on_433(self,*args):
+    def on_433(self,zeile):
         ''' der nickname ist bereits belegt'''
         try:
             neuernick = self.nicknames.pop(0)
@@ -125,16 +135,18 @@ class ircverbindung:
             exit('Nicknames sind ausgegangen')
         self.rawsend('NICK %s' % neuernick)
 
-    def on_001(self,*args):
+    def on_001(self,zeile):
         '''die IRC Verbindung ist gerade hergestellt worden'''
         self.join('#tiax')
 
-    def on_PRIVMSG(self,*args):
+    def on_PRIVMSG(self,zeile):
         '''bearbeitet eingehende Nachrichten'''
-        print args
-        if len(args[0]) >= 3 and args[0][3].lstrip(':') == 'die':
+        if 'die' in zeile['inhalt']:
             self.quit('diediedie')
+        elif 'ping' in zeile['inhalt']:
+            self.msg(zeile['ziel'],'%s: pong' % zeile['quelle'])
+        print 'Nachricht von %s an %s: %s' % (zeile['quelle'], zeile['ziel'], zeile['inhalt'])
 
-    def on_UNBEKANNT(self,*args):
+    def on_UNBEKANNT(self,zeile):
         '''verarbeitet alles, was nicht sonstwie verarbeitet werden kann'''
         pass
