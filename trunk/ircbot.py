@@ -13,6 +13,7 @@
 # was an modulen gebraucht wird.
 import socket # für die IRC-Verbindung
 from sys import exit
+from types import ListType
 # es gibt mehrere Klassen. Die Verbindung als solche ist wohl die wichtigste und
 # wird als erstes aufgerufen. Sie stellt die Verbindung her und kümmert sich um
 # alles, was rein kommt. Nach der Verarbeitung der rohen Zeile wird ggf. eine
@@ -36,7 +37,11 @@ class ircverbindung:
         realname als string
 
         gibt nix zurück aber stellt erst die Verbindung zum IRC-Server her und ruft dann den Verarbeiter auf'''
-        self.nicknames = nickname
+        self.nicknames = []
+        if type(nickname) != ListType:
+            self.nicknames.append(nickname)
+        else:
+            self.nicknames.extend(nickname)
         nickname = self.nicknames.pop(0)
         ident = ident or nickname
         realname = realname or nickname
@@ -44,7 +49,7 @@ class ircverbindung:
         try:
             self.so.connect(server)
         except TypeError:
-            self.so = so.connect((server,6667))
+            self.so.connect((server,6667))
         # self.so.settimeout(5)
         self.so.send('USER %s * * :%s\r\n' % (ident, realname))
         print 'DEBUG:  >> USER %s * * :%s' % (ident, realname)
@@ -122,7 +127,7 @@ class ircverbindung:
 
     def on_001(self,*args):
         '''die IRC Verbindung ist gerade hergestellt worden'''
-        self.join('#the-dominion')
+        self.join('#tiax')
 
     def on_PRIVMSG(self,*args):
         '''bearbeitet eingehende Nachrichten'''
