@@ -42,7 +42,7 @@ class ircverbindung:
             self.nicknames.append(nickname)
         else:
             self.nicknames.extend(nickname)
-        nickname = self.nicknames.pop(0)
+        self.currentnickname = self.nicknames.pop(0)
         ident = ident or nickname
         realname = realname or nickname
         self.so = socket.socket()
@@ -53,8 +53,8 @@ class ircverbindung:
         # self.so.settimeout(5)
         self.so.send('USER %s * * :%s\r\n' % (ident, realname))
         print 'DEBUG:  >> USER %s * * :%s' % (ident, realname)
-        self.so.send('NICK %s\r\n' % nickname)
-        print 'DEBUG:  >> NICK %s' % nickname
+        self.so.send('NICK %s\r\n' % self.currentnickname)
+        print 'DEBUG:  >> NICK %s' % self.currentnickname
         self._verarbeite_reingehendes()
 
     def _verarbeite_reingehendes(self):
@@ -93,7 +93,13 @@ class ircverbindung:
     def _chopit(self, zeile):
         ''' teilt reingehendes in ein Dictionary von Quelle, Event, Ziel und Inhalt auf'''
         temp = {}
-        temp['quelle'] = zeile[0].lstrip(':')
+        temp['quelle'] = {}
+        if '@' in zeile[0]:
+            temp['quelle']['nickname'] = zeile[0].split('!')[0].lstrip(':')
+            temp['quelle']['ident'] = zeile[0].split('@')[0].split('!')[1]
+            temp['quelle']['host'] = zeile[0].split('@')[1]
+        else:
+            temp['quelle']['nickname'], temp['quelle']['ident'], temp['quelle']['host'] = 'none','none','none'
         temp['event'] = zeile[1]
         temp['ziel'] = zeile[2]
         if len(zeile) >= 4:
@@ -127,25 +133,33 @@ class ircverbindung:
 
     ##### Events
 
+    ## Numerics
+    
     def on_433(self,zeile):
-        ''' der nickname ist bereits belegt'''
+        ''' der nickname ist bereits belegt
+        wir holen jetzt weitere nicks aus der anfangs erstellten Liste. Falls die leer wird, beenden wir den Bot'''
         try:
-            neuernick = self.nicknames.pop(0)
+            self.currentnickname = self.nicknames.pop(0)
         except IndexError:
             exit('Nicknames sind ausgegangen')
-        self.rawsend('NICK %s' % neuernick)
+        self.rawsend('NICK %s' % self.currentnickname)
 
     def on_001(self,zeile):
-        '''die IRC Verbindung ist gerade hergestellt worden'''
+        '''die IRC Verbindung ist gerade hergestellt worden
+        Das ist die ideale Gelegenheit, am Anfang auszufuehrende Befehle einzugeben'''
         self.join('#tiax')
 
+    ## Textevents
+    
     def on_PRIVMSG(self,zeile):
         '''bearbeitet eingehende Nachrichten'''
+        # DEBUG
         if 'die' in zeile['inhalt']:
             self.quit('diediedie')
         elif 'ping' in zeile['inhalt']:
-            self.msg(zeile['ziel'],'%s: pong' % zeile['quelle'])
-        print 'Nachricht von %s an %s: %s' % (zeile['quelle'], zeile['ziel'], zeile['inhalt'])
+            self.msg(zeile['ziel'],'%s: pong' % zeile['quelle']['nickname'])
+        print 'Nachricht von %s an %s: %s' % (zeile['quelle']['nickname'], zeile['ziel'], zeile['inhalt'])
+        # Ende DEBUG
 
     def on_UNBEKANNT(self,zeile):
         '''verarbeitet alles, was nicht sonstwie verarbeitet werden kann'''
