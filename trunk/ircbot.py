@@ -69,7 +69,7 @@ class ircverbindung:
         while 1:
             try:
                 self.lesebuffer = self.so.recv(8192)
-            except socket.error, x:
+            except socket.error:
                 print "DEBUG: <> Verbindung geschlossen"
                 break
             if len(self.lesebuffer) == 0:
