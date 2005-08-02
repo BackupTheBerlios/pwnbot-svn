@@ -23,12 +23,12 @@ from types import ListType
 class ircverbindung:
     def __init__(self,server,nickname,ident=None,realname=None):
         '''gleich verbinden, wenn die klasse erstellt wird'''
-        self.lesebuffer = '' # wir brauchen einen leeren Buffer, in den geschrieben wird. Ein Buffer wird gebraucht, weil nicht alles sofort ankommt bei lag usw
-        self.verbinde(server,nickname,ident,realname) # gleich am Anfang wird verbunden
+        self._lesebuffer = '' # wir brauchen einen leeren Buffer, in den geschrieben wird. Ein Buffer wird gebraucht, weil nicht alles sofort ankommt bei lag usw
+        self._verbinde(server,nickname,ident,realname) # gleich am Anfang wird verbunden
 
     ##### Grundlegendes
 
-    def verbinde(self,server,nickname,ident=None,realname=None):
+    def _verbinde(self,server,nickname,ident=None,realname=None):
         '''stellt die Verbindung zum Server her
         erwartet:
         server entweder als string (url) oder tuple (url, port)
@@ -68,15 +68,15 @@ class ircverbindung:
 
         while 1:
             try:
-                self.lesebuffer = self.so.recv(8192)
+                self._lesebuffer = self.so.recv(8192)
             except socket.error:
                 print "DEBUG: <> Verbindung geschlossen"
                 break
-            if len(self.lesebuffer) == 0:
+            if len(self._lesebuffer) == 0:
                 print "DEBUG:<> Verbindung geschlossen"
                 break
-            temp = self.lesebuffer.split('\n')
-            self.lesebuffer = temp.pop()
+            temp = self._lesebuffer.split('\n')
+            self._lesebuffer = temp.pop()
             for zeile in temp:
                 zeile = zeile.rstrip().split()
                 print 'DEBUG: <<%s' % zeile
