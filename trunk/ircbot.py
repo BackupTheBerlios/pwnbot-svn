@@ -112,7 +112,6 @@ class ircverbindung:
             temp['inhalt'][0] = temp['inhalt'][0].lstrip(':')
         return temp
 
-<<<<<<< .mine
     def _teile_befehl(self,zeile):
         '''teilt Befehle in ein Dictionary auf:
         befehl['quelle']['host'],['ident'],['nick']
@@ -140,35 +139,6 @@ class ircverbindung:
         else:
             self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
 
-=======
-    def _teile_befehl(self,zeile):
-        '''teilt Befehle in ein Dictionary auf:
-        befehl['quelle']['host'],['ident'],['nick']
-        befehl['ziel']
-        befehl['befehl']
-        befehl['argumente']
-
-        '''
-        befehl = {}
-        befehl['quelle'] = zeile['quelle']
-        befehl['ziel'] = zeile['ziel']
-        if zeile['inhalt'][0].startswith(self.currentnickname):
-            zeile['inhalt'].reverse()
-            zeile['inhalt'].pop()
-            zeile['inhalt'].reverse()
-        befehl['befehl'] = zeile['inhalt'][0]
-        befehl['argumente'] = zeile['inhalt'][1:]
-        print 'DEBUG: << Befehl von %s an %s: %s mit Argumenten %s' % (befehl['quelle'],befehl['ziel'],befehl['befehl'],befehl['argumente'])
-        if not befehl['befehl'].startswith('_') or befehl['befehl'].startswith('on_'):
-            try:
-                temp = getattr(self,befehl['befehl'])
-                temp(befehl)
-            except AttributeError:
-                self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
-        else:
-            self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
-
->>>>>>> .r23
     def rawsend(self,rausgehendes):
         '''schickt Daten an den Server
         erwartet:
