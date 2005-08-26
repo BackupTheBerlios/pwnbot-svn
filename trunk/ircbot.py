@@ -43,8 +43,8 @@ class ircverbindung:
         else:
             self.nicknames.extend(nickname)
         self.currentnickname = self.nicknames.pop(0)
-        ident = ident or nickname
-        realname = realname or nickname
+        ident = ident or self.currentnickname
+        realname = realname or self.currentnickname
         self.so = socket.socket()
         try:
             self.so.connect(server)
@@ -80,18 +80,23 @@ class ircverbindung:
             for zeile in temp:
                 zeile = zeile.rstrip().split()
                 print 'DEBUG: <<%s' % zeile
-                if zeile[0] == 'PING':
+                if zeile[0] == 'PING': # das wird hardcoded, weil man sonst recht einfach vom server fliegt, wenn das nicht geht. Keinen Unfug damit machen!
                     print 'DEBUG: >> PONG an den Server geschickt'
                     self.so.send('PONG %s\r\n' % zeile[1])
                 else:
                     try:
                         befehl = getattr(self,'on_%s' % zeile[1])
-                        befehl(self._chopit(zeile))
+                        befehl(self._teile_zeile(zeile))
                     except AttributeError:
-                        self.on_UNBEKANNT(self._chopit(zeile))
+                        self.on_UNBEKANNT(self._teile_zeile(zeile))
 
-    def _chopit(self, zeile):
-        ''' teilt reingehendes in ein Dictionary von Quelle, Event, Ziel und Inhalt auf'''
+    def _teile_zeile(self, zeile):
+        ''' teilt reingehendes in ein Dictionary auf
+        ['quelle']['host'],['ident'],['nickname']
+        ['event']
+        ['ziel']
+        ['inhalt']
+        '''
         temp = {}
         temp['quelle'] = {}
         if '@' in zeile[0]:
@@ -106,6 +111,33 @@ class ircverbindung:
             temp['inhalt'] = zeile[3:]
             temp['inhalt'][0] = temp['inhalt'][0].lstrip(':')
         return temp
+
+    def _teile_befehl(self,zeile):
+        '''teilt Befehle in ein Dictionary auf:
+        befehl['quelle']['host'],['ident'],['nick']
+        befehl['ziel']
+        befehl['befehl']
+        befehl['argumente']
+
+        '''
+        befehl = {}
+        befehl['quelle'] = zeile['quelle']
+        befehl['ziel'] = zeile['ziel']
+        if zeile['inhalt'][0].startswith(self.currentnickname):
+            zeile['inhalt'].reverse()
+            zeile['inhalt'].pop()
+            zeile['inhalt'].reverse()
+        befehl['befehl'] = zeile['inhalt'][0]
+        befehl['argumente'] = zeile['inhalt'][1:]
+        print 'DEBUG: << Befehl von %s an %s: %s mit Argumenten %s' % (befehl['quelle'],befehl['ziel'],befehl['befehl'],befehl['argumente'])
+        if not befehl['befehl'].startswith('_') or befehl['befehl'].startswith('on_'):
+            try:
+                temp = getattr(self,befehl['befehl'])
+                temp(befehl)
+            except AttributeError:
+                self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
+        else:
+            self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
 
     def rawsend(self,rausgehendes):
         '''schickt Daten an den Server
@@ -125,7 +157,9 @@ class ircverbindung:
         '''schickt Nachrichten raus'''
         print 'Nachricht an %s: %s' % (ziel, nachricht)
         self.rawsend('PRIVMSG %s :%s' % (ziel, nachricht))
-
+    def notice(self,ziel,nachricht):
+        '''schickt eine Nachricht als Notice raus'''
+        self.rawsend('NOTICE %s :%s' % (ziel,nachricht))
     def quit(self,quitmessage):
         print 'DEBUG: <> Beende'
         self.rawsend('quit :%s' % quitmessage)
@@ -134,7 +168,7 @@ class ircverbindung:
     ##### Events
 
     ## Numerics
-    
+
     def on_433(self,zeile):
         ''' der nickname ist bereits belegt
         wir holen jetzt weitere nicks aus der anfangs erstellten Liste. Falls die leer wird, beenden wir den Bot'''
@@ -150,9 +184,12 @@ class ircverbindung:
         self.join('#tiax')
 
     ## Textevents
-    
+
     def on_PRIVMSG(self,zeile):
         '''bearbeitet eingehende Nachrichten'''
+        if zeile['inhalt'][0].startswith(self.currentnickname) or zeile['ziel'] == self.currentnickname: # der bot wird entweder angesprochen oder er kriegt eine private message
+            print 'DEBUG: Befehl aufgeschnappt'
+            self._teile_befehl(zeile)
         # DEBUG
         if 'die' in zeile['inhalt']:
             self.quit('diediedie')
