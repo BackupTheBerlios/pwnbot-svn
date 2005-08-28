@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: iso8859-15 -*-
 
-### ### ### ### ### ### ### ### ### ### ### ### ###
-### ircbot                                      ###
-###################################################
-### weils keinen ircbot gab, der mir zusagte,   ###
-### habe ich einen eigenen geschrieben.         ###
-### das macht ihn nicht beser als die andren,   ###
-### er tut aber genau das, was ich will.        ###
-### ### ### ### ### ### ### ### ### ### ### ### ###
+# ## ### ### ### ### ### ### ### ### ### ### ### # #
+# ircbot                                        # #
+# ############################################### #
+# # weils keinen ircbot gab, der mir zusagte,   # #
+# # habe ich einen eigenen geschrieben.         # #
+# # das macht ihn nicht beser als die andren,   # #
+# # er tut aber genau das, was ich will.        # #
+# # ### ### ### ### ### ### ### ### ### ### ### # #
 
 # was an modulen gebraucht wird.
 import socket # für die IRC-Verbindung
@@ -119,6 +119,10 @@ class ircverbindung:
         befehl['befehl']
         befehl['argumente']
 
+        anschließend wird überprüft, ob kein potentiell "gefährlicher" Name für den Befehl verwendet worden ist
+        Dann wird der Befehlshandler aufgerufen. Befehlshandler sind Funktionen mit cmd_ vorne dran.
+        Wenn es eine entsprechende Funktion existiert, wird "befehl" als ganzes übergeben.
+
         '''
         befehl = {}
         befehl['quelle'] = zeile['quelle']
@@ -139,6 +143,35 @@ class ircverbindung:
         else:
             self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
 
+    # Befehlshandler
+    def cmd_debug(self,befehl):
+        '''ein fallback zum analysieren von befehlsketten'''
+        self.notice(befehl['quelle']['nick'],befehl)
+
+    def cmd_join(self, befehl):
+        '''betritt Channel
+
+        Interpretiert die Argumente des Befehls als Liste von Channeln, die nacheinander betreten werden'''
+        for channel in befehl['argumente']:
+            self.join(channel)
+
+    def cmd_say(self, befehl):
+        '''sagt etwas in einem Channel
+
+        Als erstes Argument wird das Ziel der Nachricht (Channel oder Nickname) hergenommen, der ganze Rest als Nachricht'''
+        ziel = befehl['argumente'][0]
+        nachricht = " ".join(befehl['argumente'][1:])
+        self.msg(ziel,nachricht)
+
+    def cmd_die(self,*befehl):
+        '''schaltet den Bot ab'''
+        befehl = befehl[0]
+        if befehl['quelle']['ident'] == 'tiax':
+            self.quit('diediedie')
+        else:
+            self.notice(befehl['quelle']['nick'],'Du darfst den Bot nicht abschalten')
+
+    # für allen möglichen Käse
     def rawsend(self,rausgehendes):
         '''schickt Daten an den Server
         erwartet:
@@ -146,7 +179,7 @@ class ircverbindung:
         gibt auch nix zurück, erspart uns aber die lästige Fehlersuche, wenn die Zeichen am Zeilenende vergessen worden sind.'''
         self.so.send('%s\r\n' % rausgehendes)
 
-    ##### konkrete Befehle
+    # konkrete Befehle
 
     def join(self,channel,key=''):
         '''betritt Channel'''
@@ -165,9 +198,9 @@ class ircverbindung:
         self.rawsend('quit :%s' % quitmessage)
         self.so.close()
 
-    ##### Events
+    # Events
 
-    ## Numerics
+    # Numerics
 
     def on_433(self,zeile):
         ''' der nickname ist bereits belegt
@@ -181,9 +214,9 @@ class ircverbindung:
     def on_001(self,zeile):
         '''die IRC Verbindung ist gerade hergestellt worden
         Das ist die ideale Gelegenheit, am Anfang auszufuehrende Befehle einzugeben'''
-        self.join('#tiax')
+        pass
 
-    ## Textevents
+    # Textevents
 
     def on_PRIVMSG(self,zeile):
         '''bearbeitet eingehende Nachrichten'''
@@ -191,8 +224,6 @@ class ircverbindung:
             print 'DEBUG: Befehl aufgeschnappt'
             self._teile_befehl(zeile)
         # DEBUG
-        if 'die' in zeile['inhalt']:
-            self.quit('diediedie')
         elif 'ping' in zeile['inhalt']:
             self.msg(zeile['ziel'],'%s: pong' % zeile['quelle']['nickname'])
         print 'Nachricht von %s an %s: %s' % (zeile['quelle']['nickname'], zeile['ziel'], zeile['inhalt'])
