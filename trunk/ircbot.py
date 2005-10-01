@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: iso8859-15 -*-
 
-# ## ### ### ### ### ### ### ### ### ### ### ### # #
-# ircbot                                        # #
-# ############################################### #
-# # weils keinen ircbot gab, der mir zusagte,   # #
-# # habe ich einen eigenen geschrieben.         # #
-# # das macht ihn nicht beser als die andren,   # #
-# # er tut aber genau das, was ich will.        # #
-# # ### ### ### ### ### ### ### ### ### ### ### # #
+# ## ### ### ### ### ### ### ### ### ### ### ###
+# ircbot
+# $Author$
+# $Date$
+# $Rev$
+# ###############################################
+# # weils keinen ircbot gab, der mir zusagte,   #
+# # habe ich einen eigenen geschrieben.         #
+# # das macht ihn nicht beser als die andren,   #
+# # er tut aber genau das, was ich will.        #
+# # ### ### ### ### ### ### ### ### ### ### ### #
 
 # was an modulen gebraucht wird.
 import socket # für die IRC-Verbindung
@@ -25,7 +28,7 @@ class ircverbindung:
     def __init__(self,server,nickname,ident=None,realname=None):
         '''gleich verbinden, wenn die klasse erstellt wird'''
         self._lesebuffer = '' # wir brauchen einen leeren Buffer, in den geschrieben wird. Ein Buffer wird gebraucht, weil nicht alles sofort ankommt bei lag usw
-        self.log = EinzelDateiLogger('debug.log')
+        self.loger = EinzelDateiLogger('debug.log')
         self._verbinde(server,nickname,ident,realname) # gleich am Anfang wird verbunden
 
     # Grundlegendes
@@ -81,7 +84,7 @@ class ircverbindung:
             self._lesebuffer = temp.pop()
             for zeile in temp:
                 zeile = zeile.rstrip().split()
-                self.log.log('Debug'," ".join(zeile))
+                self.loger.log('Debug'," ".join(zeile))
                 #print 'DEBUG: <<%s' % zeile
                 if zeile[0] == 'PING': # das wird hardcoded, weil man sonst recht einfach vom server fliegt, wenn das nicht geht. Keinen Unfug damit machen!
                     self.so.send('PONG %s\r\n' % zeile[1])
@@ -135,15 +138,13 @@ class ircverbindung:
             zeile['inhalt'].reverse()
         befehl['befehl'] = zeile['inhalt'][0]
         befehl['argumente'] = zeile['inhalt'][1:]
-        #print 'DEBUG: << Befehl von %s an %s: %s mit Argumenten %s' % (befehl['quelle'],befehl['ziel'],befehl['befehl'],befehl['argumente'])
-        if not befehl['befehl'].startswith('_') or befehl['befehl'].startswith('on_'): #sicherheitscheck eventuell unnütz?
-            try:
-                temp = getattr(self,'cmd_%s' % befehl['befehl'])
-                temp(befehl)
-            except AttributeError:
-                self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
-        else:
+        try:
+            temp = getattr(self,'cmd_%s' % befehl['befehl'])
+            temp(befehl)
+            self.loger.log('Befehl','Befehl von %s: %s' % (befehl['quelle']['nickname']," ".join([befehl['befehl']," ".join(befehl['argumente'])])))
+        except AttributeError:
             self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
+            self.loger.log('Fehler','Befehl von %s nicht gefunden: %s' % (befehl['quelle']['nickname']," ".join([befehl['befehl']," ".join(befehl['argumente'])])))
 
     # Befehlshandler
     def cmd_debug(self,befehl):
@@ -165,14 +166,13 @@ class ircverbindung:
         nachricht = " ".join(befehl['argumente'][1:])
         self.msg(ziel,nachricht)
 
-    def cmd_die(self,*befehl):
+    def cmd_die(self,befehl):
         '''schaltet den Bot ab'''
-        befehl = befehl[0]
         if befehl['quelle']['ident'] == 'tiax':
             self.quit('diediedie')
         else:
             self.notice(befehl['quelle']['nick'],'Du darfst den Bot nicht abschalten')
-    def cmd_ping(self,*befehl):
+    def cmd_ping(self,befehl):
         '''antwortet mit pong'''
         if befehl['ziel'].startswith('#'):
             self.msg(befehl['ziel'],'Pong')
@@ -186,25 +186,25 @@ class ircverbindung:
         das, was geschickt werden soll
         gibt auch nix zurück, erspart uns aber die lästige Fehlersuche, wenn die Zeichen am Zeilenende vergessen worden sind.'''
         self.so.send('%s\r\n' % rausgehendes)
-        self.log.log('Rausgehend','Raw: %s' % rausgehendes)
+        self.loger.log('Rausgehend','Raw: %s' % rausgehendes)
 
     # konkrete Befehle
 
     def join(self,channel,key=''):
         '''betritt Channel'''
-        self.log.log('Verbindung','Channel %s betreten' % channel)
+        self.loger.log('Verbindung','Channel %s betreten' % channel)
         self.rawsend('JOIN %s %s' % (channel, key))
 
     def msg(self,ziel,nachricht):
         '''schickt Nachrichten raus'''
         self.rawsend('PRIVMSG %s :%s' % (ziel, nachricht))
-        self.log('Rausgehendes','Message an %s:' % befehl['ziel'])
-    
+        self.loger.log('Rausgehendes','Message an %s: %s' % (ziel,nachricht))
+
     def notice(self,ziel,nachricht):
         '''schickt eine Nachricht als Notice raus'''
         self.rawsend('NOTICE %s :%s' % (ziel,nachricht))
-        self.log.log('Rausgehendes','Notice an %s:' % befehl['ziel'])
-    
+        self.loger.log('Rausgehendes','Notice an %s: %s' % (ziel,nachricht))
+
     def quit(self,quitmessage):
         print 'Beende'
         self.rawsend('quit :%s' % quitmessage)
@@ -220,16 +220,16 @@ class ircverbindung:
         try:
             self.currentnickname = self.nicknames.pop(0)
         except IndexError:
-            self.log.log('Verbindung','Nickname bereits belegt, alle Nicks sind ausgegangen')
+            self.loger.log('Verbindung','Nickname bereits belegt, alle Nicks sind ausgegangen')
             exit('Nicknames sind ausgegangen')
-            self.log.log('Verbindng','Nickname war bereits belegt, %s wird versucht' % self.currentnickname)
+            self.loger.log('Verbindng','Nickname war bereits belegt, %s wird versucht' % self.currentnickname)
         self.rawsend('NICK %s' % self.currentnickname)
 
     def on_001(self,zeile):
         '''die IRC Verbindung ist gerade hergestellt worden
         Das ist die ideale Gelegenheit, am Anfang auszufuehrende Befehle einzugeben'''
-        self.log.log('Verbindung','Verbindung hergestellt')
-        print "Verbindung hergestellt"    
+        self.loger.log('Verbindung','Verbindung hergestellt')
+        print "Verbindung hergestellt"
         pass
 
     # Textevents
@@ -238,10 +238,12 @@ class ircverbindung:
         '''bearbeitet eingehende Nachrichten'''
         if zeile['inhalt'][0].startswith(self.currentnickname) or zeile['ziel'] == self.currentnickname: # der bot wird entweder angesprochen oder er kriegt eine private message
             self._teile_befehl(zeile)
-        self.log.log('Nachricht','%s <%s!%s@%s> %s' % (zeile['ziel'],zeile['quelle']['nickname'],zeile['quelle']['ident'],zeile['quelle']['host']," ".join(zeile['inhalt'])))
-        print 'Nachricht von %s an %s: %s' % (zeile['quelle']['nickname'], zeile['ziel'], zeile['inhalt'])
+        self.loger.log('Nachricht','%s <%s!%s@%s> %s' % (zeile['ziel'],zeile['quelle']['nickname'],zeile['quelle']['ident'],zeile['quelle']['host']," ".join(zeile['inhalt'])))
         # Ende DEBUG
 
     def on_UNBEKANNT(self,zeile):
         '''verarbeitet alles, was nicht sonstwie verarbeitet werden kann'''
         pass
+
+if __name__ == '__main__':
+    GameSurge = ircverbindung(('irc.eu.gamesurge.net',6667),['pwn','own','pwn0r'])
