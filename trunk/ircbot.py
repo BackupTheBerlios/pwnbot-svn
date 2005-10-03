@@ -28,48 +28,57 @@ class ircverbindung:
     def __init__(self,server,nickname,ident=None,realname=None):
         '''gleich verbinden, wenn die klasse erstellt wird'''
         self._lesebuffer = '' # wir brauchen einen leeren Buffer, in den geschrieben wird. Ein Buffer wird gebraucht, weil nicht alles sofort ankommt bei lag usw
-        self.loger = EinzelDateiLogger('debug.log')
+        self.logger = EinzelDateiLogger('debug.log') # Den EinzelDateiLogger starten
         self._verbinde(server,nickname,ident,realname) # gleich am Anfang wird verbunden
 
     # Grundlegendes
 
     def _verbinde(self,server,nickname,ident=None,realname=None):
-        '''stellt die Verbindung zum Server her
-        erwartet:
-        server entweder als string (url) oder tuple (url, port)
-        nickname als liste von nicknames
-        ident als string
-        realname als string
+        '''stellt die Verbindung zum Server her und gibt zur Verarbeitung weiter
 
-        gibt nix zurück aber stellt erst die Verbindung zum IRC-Server her und ruft dann den Verarbeiter auf'''
+        erhält:
+            server: string (host) oder tuple (host, port)
+            nickname: string oder liste
+            ident: optional string
+            realname: optional string
+
+        gibt zurück:
+            nichts
+
+        ruft auf:
+            _verarbeite_reingehendes
+        '''
         self.nicknames = []
-        if type(nickname) != ListType:
+        if type(nickname) != ListType: # Nicknames brauchen wir immer als Liste - falls einer davon belegt ist
             self.nicknames.append(nickname)
         else:
             self.nicknames.extend(nickname)
         self.currentnickname = self.nicknames.pop(0)
-        ident = ident or self.currentnickname
-        realname = realname or self.currentnickname
+        ident = ident or self.currentnickname # ident und realname sind nicht so wichtig
+        realname = realname or self.currentnickname # falls keine festgelegt sind, brauchen wir aber _irgendwelche_
         self.so = socket.socket()
         try:
             self.so.connect(server)
-        except TypeError:
+        except TypeError: # Falls server nicht als Tuple sondern nur als String (Host) übergeben worden ist
             self.so.connect((server,6667))
-        # self.so.settimeout(5)
         self.so.send('USER %s * * :%s\r\n' % (ident, realname))
-        # print 'DEBUG:  >> USER %s * * :%s' % (ident, realname)
         self.so.send('NICK %s\r\n' % self.currentnickname)
-        # print 'DEBUG:  >> NICK %s' % self.currentnickname
         self._verarbeite_reingehendes()
 
     def _verarbeite_reingehendes(self):
         '''liest den Buffer aus und verteilt das Reingehende auf die Funktionen
-        erwartet: garnix
-        gibt auch nix zurück, aber liest immer 1024 bytes ein und tut sie zum buffer dazu.
-        die letzte zeile wird wieder zurück in den buffer getan und erst nächste mal verarbeitet,
-        weil vielleicht nicht die ganze Zeile angekommen ist. So kann die Zeile erstmal vervollständigt werden.
-        Wenn eine entsprechende Funktion besteht (on_FUNKTION), wird diese aufgerufen, sonst wird on_UNBEKANNT aufgerufen.
-        als Spezialfall wird hier gleich PING behandelt, denn da sollte tunlichst sofort PONG zurück geschickt werden.'''
+
+        erhält:
+            nichts
+
+        gibt zurck:
+            nichts
+
+        ruft auf:
+            Die Funktion, deren Event zu on_EVENT passt (etwa on_PRIVMSG), mit dem Ergebnis von _teile_zeile
+            Falls keine Funktion passt, wird on_UNBEKANNT mit dem Ergebnis von _teile_zeile aufgerufen
+
+        '''
 
         while 1:
             try:
@@ -81,26 +90,31 @@ class ircverbindung:
                 print "DEBUG:<> Verbindung geschlossen"
                 break
             temp = self._lesebuffer.split('\n')
-            self._lesebuffer = temp.pop()
+            self._lesebuffer = temp.pop() # Die letzte Zeile wird zurückgestellt, da sie eventuell noch gar nicht ganz zu ende war. Wir empfangen nicht Zeilen- sondern Byteweise.
             for zeile in temp:
                 zeile = zeile.rstrip().split()
-                self.loger.log('Debug'," ".join(zeile))
-                #print 'DEBUG: <<%s' % zeile
+                self.logger.log('Debug'," ".join(zeile))
                 if zeile[0] == 'PING': # das wird hardcoded, weil man sonst recht einfach vom server fliegt, wenn das nicht geht. Keinen Unfug damit machen!
                     self.so.send('PONG %s\r\n' % zeile[1])
                 else:
                     try:
                         befehl = getattr(self,'on_%s' % zeile[1])
                         befehl(self._teile_zeile(zeile))
-                    except AttributeError:
+                    except AttributeError: # es gibt wohl keine on_EVENT Funktion für das gefundene EVENT, also rufen wir den (optionalen) Handler dafür auf
                         self.on_UNBEKANNT(self._teile_zeile(zeile))
 
     def _teile_zeile(self, zeile):
         ''' teilt reingehendes in ein Dictionary auf
-        ['quelle']['host'],['ident'],['nickname'] jeweils als string
-        ['event'] string
-        ['ziel'] string
-        ['inhalt'] string
+
+        erhält:
+            zeile: liste
+
+        gibt zurück:
+            Dictionary:
+                ['quelle']['host'],['ident'],['nickname']: string
+                ['event']: string
+                ['ziel']: string
+                ['inhalt']: string
         '''
         temp = {}
         temp['quelle'] = {}
@@ -118,15 +132,22 @@ class ircverbindung:
         return temp
 
     def _teile_befehl(self,zeile):
-        '''teilt Befehle in ein Dictionary auf:
-        befehl['quelle']['host'],['ident'],['nick'] jeweils als string
-        befehl['ziel'] string
-        befehl['befehl'] string
-        befehl['argumente'] liste
+        '''teilt erkannte Befehle in ein Dictionary auf. Was ein Befehl ist, wird in on_PRIVMSG behandelt.
+        erhält:
+            zeile: Dictionary:
+                ['quelle']['host'],['ident'],['nickname']: string
+                ['event']: string
+                ['ziel']: string
+                ['inhalt']: string
 
-        anschließend wird überprüft, ob kein potentiell "gefährlicher" Name für den Befehl verwendet worden ist
-        Dann wird der Befehlshandler aufgerufen. Befehlshandler sind Funktionen mit cmd_ vorne dran.
-        Wenn es eine entsprechende Funktion existiert, wird "befehl" als ganzes übergeben.
+        gibt zurück:
+            ['quelle']['host'],['ident'],['nick']: string
+            ['ziel']: string
+            ['befehl']: string
+            ['argumente']: liste
+
+        ruf auf:
+            cmd_BEFEHL falls vorhanden, ansonsten: Fehlermeldung per notice
 
         '''
         befehl = {}
@@ -141,39 +162,69 @@ class ircverbindung:
         try:
             temp = getattr(self,'cmd_%s' % befehl['befehl'])
             temp(befehl)
-            self.loger.log('Befehl','Befehl von %s: %s' % (befehl['quelle']['nickname']," ".join([befehl['befehl']," ".join(befehl['argumente'])])))
-        except AttributeError:
+            self.logger.log('Befehl','Befehl von %s: %s' % (befehl['quelle']['nickname']," ".join([befehl['befehl']," ".join(befehl['argumente'])])))
+        except AttributeError: # keine Funktion mit cmd_BEFEHL gefunden.
             self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
-            self.loger.log('Fehler','Befehl von %s nicht gefunden: %s' % (befehl['quelle']['nickname']," ".join([befehl['befehl']," ".join(befehl['argumente'])])))
+            self.logger.log('Fehler','Befehl von %s nicht gefunden: %s' % (befehl['quelle']['nickname']," ".join([befehl['befehl']," ".join(befehl['argumente'])])))
 
     # Befehlshandler
-    def cmd_debug(self,befehl):
-        '''ein fallback zum analysieren von befehlsketten'''
-        self.notice(befehl['quelle']['nick'],befehl)
-
-    def cmd_join(self, befehl):
+        def cmd_join(self, befehl):
         '''betritt Channel
 
-        Interpretiert die Argumente des Befehls als Liste von Channeln, die nacheinander betreten werden'''
+        erhält:
+            Dictionary:
+                ['argumente']: liste
+
+        ruft auf:
+            join für jeden Eintrag in der liste ['argumente']'''
         for channel in befehl['argumente']:
             self.join(channel)
 
     def cmd_say(self, befehl):
         '''sagt etwas in einem Channel
 
-        Als erstes Argument wird das Ziel der Nachricht (Channel oder Nickname) hergenommen, der ganze Rest als Nachricht'''
+        erhält:
+            befehl['argumente']: Liste
+
+        gibt zurück:
+            nichts
+
+        ruft auf:
+            msg mit argumente[0] als Ziel der Message und argumente[1:] als Message'''
         ziel = befehl['argumente'][0]
         nachricht = " ".join(befehl['argumente'][1:])
         self.msg(ziel,nachricht)
 
     def cmd_die(self,befehl):
-        '''schaltet den Bot ab'''
+        '''schaltet den Bot ab
+
+        erhält:
+            befehl['quelle']['ident']: string
+
+        gibt zurück:
+            nichts
+
+        ruft auf:
+            quit mit einer Standardmessage, falls das Ident-Field stellt
+            ansonsten gibts ne notice zurück
+        '''
         if befehl['quelle']['ident'] == 'tiax':
             self.quit('diediedie')
         else:
             self.notice(befehl['quelle']['nick'],'Du darfst den Bot nicht abschalten')
+
     def cmd_ping(self,befehl):
-        '''antwortet mit pong'''
+        '''antwortet mit pong
+
+        erhält:
+            befehl['ziel']: string
+
+        gibt zurück:
+            nichts
+
+        ruft auf:
+            msg "Pong" an Nick oder Channel
+        '''
         if befehl['ziel'].startswith('#'):
             self.msg(befehl['ziel'],'Pong')
         else:
@@ -182,30 +233,62 @@ class ircverbindung:
     # für allen möglichen Käse
     def rawsend(self,rausgehendes):
         '''schickt Daten an den Server
-        erwartet:
-        das, was geschickt werden soll
-        gibt auch nix zurück, erspart uns aber die lästige Fehlersuche, wenn die Zeichen am Zeilenende vergessen worden sind.'''
+
+        erhält:
+            rausgehendes: string'''
         self.so.send('%s\r\n' % rausgehendes)
-        self.loger.log('Rausgehend','Raw: %s' % rausgehendes)
+        self.logger.log('Rausgehend','Raw: %s' % rausgehendes)
 
     # konkrete Befehle
 
     def join(self,channel,key=''):
-        '''betritt Channel'''
-        self.loger.log('Verbindung','Channel %s betreten' % channel)
+        '''betritt Channel
+
+        erhält:
+            channel: string
+            key: string (optional)
+
+        ruft auf:
+            rawsend
+        '''
+        self.logger.log('Verbindung','Channel %s betreten' % channel)
         self.rawsend('JOIN %s %s' % (channel, key))
 
     def msg(self,ziel,nachricht):
-        '''schickt Nachrichten raus'''
+        '''schickt Nachrichten raus
+
+        erhält:
+            ziel: string
+            nachricht: string
+
+        ruft auf:
+            rawsend
+        '''
         self.rawsend('PRIVMSG %s :%s' % (ziel, nachricht))
-        self.loger.log('Rausgehendes','Message an %s: %s' % (ziel,nachricht))
+        self.logger.log('Rausgehendes','Message an %s: %s' % (ziel,nachricht))
 
     def notice(self,ziel,nachricht):
-        '''schickt eine Nachricht als Notice raus'''
+        '''schickt eine Nachricht als Notice raus
+
+        erhält:
+            ziel: string
+            nachricht: string
+
+        ruft auf:
+            rawsend
+        '''
         self.rawsend('NOTICE %s :%s' % (ziel,nachricht))
-        self.loger.log('Rausgehendes','Notice an %s: %s' % (ziel,nachricht))
+        self.logger.log('Rausgehendes','Notice an %s: %s' % (ziel,nachricht))
 
     def quit(self,quitmessage):
+        '''macht den Bot aus
+
+        erhält:
+            quitmessage: string
+
+        ruft auf:
+            rawsend
+        '''
         print 'Beende'
         self.rawsend('quit :%s' % quitmessage)
         self.so.close()
@@ -220,15 +303,15 @@ class ircverbindung:
         try:
             self.currentnickname = self.nicknames.pop(0)
         except IndexError:
-            self.loger.log('Verbindung','Nickname bereits belegt, alle Nicks sind ausgegangen')
+            self.logger.log('Verbindung','Nickname bereits belegt, alle Nicks sind ausgegangen')
             exit('Nicknames sind ausgegangen')
-            self.loger.log('Verbindng','Nickname war bereits belegt, %s wird versucht' % self.currentnickname)
+            self.logger.log('Verbindng','Nickname war bereits belegt, %s wird versucht' % self.currentnickname)
         self.rawsend('NICK %s' % self.currentnickname)
 
     def on_001(self,zeile):
         '''die IRC Verbindung ist gerade hergestellt worden
         Das ist die ideale Gelegenheit, am Anfang auszufuehrende Befehle einzugeben'''
-        self.loger.log('Verbindung','Verbindung hergestellt')
+        self.logger.log('Verbindung','Verbindung hergestellt')
         print "Verbindung hergestellt"
         pass
 
@@ -238,7 +321,7 @@ class ircverbindung:
         '''bearbeitet eingehende Nachrichten'''
         if zeile['inhalt'][0].startswith(self.currentnickname) or zeile['ziel'] == self.currentnickname: # der bot wird entweder angesprochen oder er kriegt eine private message
             self._teile_befehl(zeile)
-        self.loger.log('Nachricht','%s <%s!%s@%s> %s' % (zeile['ziel'],zeile['quelle']['nickname'],zeile['quelle']['ident'],zeile['quelle']['host']," ".join(zeile['inhalt'])))
+        self.logger.log('Nachricht','%s <%s!%s@%s> %s' % (zeile['ziel'],zeile['quelle']['nickname'],zeile['quelle']['ident'],zeile['quelle']['host']," ".join(zeile['inhalt'])))
         # Ende DEBUG
 
     def on_UNBEKANNT(self,zeile):
