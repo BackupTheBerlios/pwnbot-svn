@@ -71,7 +71,7 @@ class ircverbindung:
         erhält:
             nichts
 
-        gibt zurck:
+        gibt zurück:
             nichts
 
         ruft auf:
@@ -154,9 +154,7 @@ class ircverbindung:
         befehl['quelle'] = zeile['quelle']
         befehl['ziel'] = zeile['ziel']
         if zeile['inhalt'][0].startswith(self.currentnickname):
-            zeile['inhalt'].reverse()
-            zeile['inhalt'].pop()
-            zeile['inhalt'].reverse()
+            zeile['inhalt'].pop(0)
         befehl['befehl'] = zeile['inhalt'][0]
         befehl['argumente'] = zeile['inhalt'][1:]
         try:
@@ -168,7 +166,7 @@ class ircverbindung:
             self.logger.log('Fehler','Befehl von %s nicht gefunden: %s' % (befehl['quelle']['nickname']," ".join([befehl['befehl']," ".join(befehl['argumente'])])))
 
     # Befehlshandler
-        def cmd_join(self, befehl):
+    def cmd_join(self, befehl):
         '''betritt Channel
 
         erhält:
@@ -229,6 +227,21 @@ class ircverbindung:
             self.msg(befehl['ziel'],'Pong')
         else:
             self.notice(befehl['quelle']['nickname'],'Pong')
+
+    def cmd_raw(self,befehl):
+        '''lässt Rohdaten an den Server schicken, ist natürlich mit Vorsicht zu genießen.
+        erhält:
+            befehl[argumente] als Liste
+
+        gibt zurück:
+            nichts
+
+        ruft auf:
+            raw mit genau dem, was der user befiehlt'''
+        
+        self.rawsend(" ".join(befehl['argumente']))
+ 
+
 
     # für allen möglichen Käse
     def rawsend(self,rausgehendes):
