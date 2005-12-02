@@ -16,7 +16,6 @@
 # was an modulen gebraucht wird.
 import socket # für die IRC-Verbindung
 from sys import exit
-from types import ListType
 from log import EinzelDateiLogger
 # es gibt mehrere Klassen. Die Verbindung als solche ist wohl die wichtigste und
 # wird als erstes aufgerufen. Sie stellt die Verbindung her und kümmert sich um
@@ -49,13 +48,15 @@ class ircverbindung:
             _verarbeite_reingehendes
         '''
         self.nicknames = []
-        if type(nickname) != ListType: # Nicknames brauchen wir immer als Liste - falls einer davon belegt ist
+        if type(nickname) != type([]): # Nicknames brauchen wir immer als Liste - falls einer davon belegt ist
             self.nicknames.append(nickname)
         else:
             self.nicknames.extend(nickname)
         self.currentnickname = self.nicknames.pop(0)
         ident = ident or self.currentnickname # ident und realname sind nicht so wichtig
         realname = realname or self.currentnickname # falls keine festgelegt sind, brauchen wir aber _irgendwelche_
+        # ident und nickname werden in Zukunft auch gar nicht mehr gebraucht,
+        # deswegen werden wir dafuer auch jetzt keine Attribute erstellen
         self.so = socket.socket()
         try:
             self.so.connect(server)
@@ -63,7 +64,7 @@ class ircverbindung:
             self.so.connect((server,6667))
         self.so.send('USER %s * * :%s\r\n' % (ident, realname))
         self.so.send('NICK %s\r\n' % self.currentnickname)
-        self._verarbeite_reingehendes()
+        self._verarbeite_reingehendes() # Die Verbindung sollte hergestellt sein. Wir brauchen einen Loop der aus dem Buffer liest und verarbeitet
 
     def _verarbeite_reingehendes(self):
         '''liest den Buffer aus und verteilt das Reingehende auf die Funktionen
@@ -107,7 +108,7 @@ class ircverbindung:
         ''' teilt reingehendes in ein Dictionary auf
 
         erhält:
-            zeile: liste
+            zeile: eine reinkommende Zeile als Liste
 
         gibt zurück:
             Dictionary:
@@ -159,11 +160,11 @@ class ircverbindung:
         befehl['argumente'] = zeile['inhalt'][1:]
         try:
             temp = getattr(self,'cmd_%s' % befehl['befehl'])
-            temp(befehl)
             self.logger.log('Befehl','Befehl von %s: %s' % (befehl['quelle']['nickname']," ".join([befehl['befehl']," ".join(befehl['argumente'])])))
+            temp(befehl)
         except AttributeError: # keine Funktion mit cmd_BEFEHL gefunden.
-            self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
             self.logger.log('Fehler','Befehl von %s nicht gefunden: %s' % (befehl['quelle']['nickname']," ".join([befehl['befehl']," ".join(befehl['argumente'])])))
+            self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
 
     # Befehlshandler
     def cmd_join(self, befehl):
@@ -249,8 +250,8 @@ class ircverbindung:
 
         erhält:
             rausgehendes: string'''
-        self.so.send('%s\r\n' % rausgehendes)
         self.logger.log('Rausgehend','Raw: %s' % rausgehendes)
+        self.so.send('%s\r\n' % rausgehendes)
 
     # konkrete Befehle
 
@@ -277,8 +278,8 @@ class ircverbindung:
         ruft auf:
             rawsend
         '''
-        self.rawsend('PRIVMSG %s :%s' % (ziel, nachricht))
         self.logger.log('Rausgehendes','Message an %s: %s' % (ziel,nachricht))
+        self.rawsend('PRIVMSG %s :%s' % (ziel, nachricht))
 
     def notice(self,ziel,nachricht):
         '''schickt eine Nachricht als Notice raus
@@ -290,8 +291,8 @@ class ircverbindung:
         ruft auf:
             rawsend
         '''
-        self.rawsend('NOTICE %s :%s' % (ziel,nachricht))
         self.logger.log('Rausgehendes','Notice an %s: %s' % (ziel,nachricht))
+        self.rawsend('NOTICE %s :%s' % (ziel,nachricht))
 
     def quit(self,quitmessage):
         '''macht den Bot aus
@@ -318,7 +319,7 @@ class ircverbindung:
         except IndexError:
             self.logger.log('Verbindung','Nickname bereits belegt, alle Nicks sind ausgegangen')
             exit('Nicknames sind ausgegangen')
-            self.logger.log('Verbindng','Nickname war bereits belegt, %s wird versucht' % self.currentnickname)
+        self.logger.log('Verbindng','Nickname war bereits belegt, %s wird versucht' % self.currentnickname)
         self.rawsend('NICK %s' % self.currentnickname)
 
     def on_001(self,zeile):
@@ -332,9 +333,9 @@ class ircverbindung:
 
     def on_PRIVMSG(self,zeile):
         '''bearbeitet eingehende Nachrichten'''
+        self.logger.log('Nachricht','%s <%s!%s@%s> %s' % (zeile['ziel'],zeile['quelle']['nickname'],zeile['quelle']['ident'],zeile['quelle']['host']," ".join(zeile['inhalt'])))
         if zeile['inhalt'][0].startswith(self.currentnickname) or zeile['ziel'] == self.currentnickname: # der bot wird entweder angesprochen oder er kriegt eine private message
             self._teile_befehl(zeile)
-        self.logger.log('Nachricht','%s <%s!%s@%s> %s' % (zeile['ziel'],zeile['quelle']['nickname'],zeile['quelle']['ident'],zeile['quelle']['host']," ".join(zeile['inhalt'])))
         # Ende DEBUG
 
     def on_UNBEKANNT(self,zeile):
