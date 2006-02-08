@@ -4,7 +4,8 @@
 from urllib import urlopen
 from os import path
 from gzip import GzipFile
-import re
+from time import strptime
+from re import compile
 
 # Konfiguration
 # Mit was soll die URl anfangen?
@@ -50,13 +51,15 @@ class kampfbericht:
             self.bericht =  bericht
 
     def _get_daten(self):
-        startregexp = re.compile(r'Startbasis <b> (.+)</b></br>&nbsp;von ?(\[.+\])? ?(.+)&nbsp;')
-        zielregexp = re.compile(r'Zielbasis <b> (.+)</b> </br>von&nbsp; ?(\[.+\])? ?(.+)&nbsp;')
+        startregexp = compile(r'Startbasis <b> (.+)</b></br>&nbsp;von ?(\[.+\])? ?(.+)&nbsp;')
+        zielregexp = compile(r'Zielbasis <b> (.+)</b> </br>von&nbsp; ?(\[.+\])? ?(.+)&nbsp;')
+        uhrzeitregexp = compile(r'Zeit <b>(\d+.\d+.\d+) (\d+:\d+:\d+.*)</b>')
         self.startbasis['Koordinaten'],self.startbasis['Allianz'], self.startbasis['Name'] = startregexp.search(self.bericht).groups()
         self.zielbasis['Koordinaten'], self.zielbasis['Allianz'], self.zielbasis['Name'] = zielregexp.search(self.bericht).groups()
+        self.zeit = strptime(" ".join(uhrzeitregexp.search(self.bericht).groups()), '%d.%m.%Y %H:%M:%S')
         
     def _get_werte(self):
-        flottenregexp = re.compile(r'org: (\d+)/(\d+) surv: (\d+)?/(\d+)?')
+        flottenregexp = compile(r'org: (\d+)/(\d+) surv: (\d+)?/(\d+)?')
         flotten = flottenregexp.findall(self.bericht)
         # Angreifer haben nur eine Flotte und sind schnell erledigt
         # self.startbasis['Flotte'] = flotten.pop(0)
@@ -81,7 +84,7 @@ class kampfbericht:
         self.startbasis['Verluste'] = StartbasisVerluste
         self.zielbasis['Verluste'] = ZielbasisVerluste
         self.startbasis['MPVerluste'] = (StartbasisVerluste[0] + StartbasisVerluste[1]) / 200
-        self.zielbasis['MPVerluste'] = (ZielbasisVerluste[0] + ZielbasisVerluste[1]) / 200 
+        self.zielbasis['MPVerluste'] = (ZielbasisVerluste[0] + ZielbasisVerluste[1]) / 200
 
     def save(self):
         berichtdatei = open(savedir + self.id,'w')
