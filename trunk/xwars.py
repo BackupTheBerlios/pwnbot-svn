@@ -4,13 +4,13 @@
 from urllib import urlopen
 from os import path
 from gzip import GzipFile
-from re import compile
+import re
 
 # Konfiguration
 # Mit was soll die URl anfangen?
 urlstart = 'http://reports.xwars.gamigo.de/'
-cachedir = '/home/tiax/xwars/cache/'
-savedir = '/home/tiax/xwars/save/'
+cachedir = '/home/tiax/xwars/parser/cache/'
+savedir = '/home/tiax/xwars/parser/save/'
 
 class kampfbericht:
     def __init__(self,url):
@@ -18,6 +18,8 @@ class kampfbericht:
             raise IOError('Cachedir existiert nicht')
         if not path.isdir(savedir):
             raise IOError('Savedir existiert nicht')
+        self.startbasis = {}
+        self.zielbasis = {}
         self.url = url    
         self._get_id()
         self._get_kb()
@@ -47,56 +49,39 @@ class kampfbericht:
             cachedatei.close()
             self.bericht =  bericht
 
-    def _get_namestring(self,wessen='Startbasis'):
-        berichtliste = self.bericht.splitlines()
-        for zeile in berichtliste:
-            if wessen in zeile:
-                return zeile.split('&nbsp;')[2].replace('von ','')
-
-    def _get_name(self,):
-        self.basis = {}
-        if len(self._get_namestring(wessen).split()) == 2:
-            self.basis['Startbasis'] = self._get_namestring('Startbasis').split()[1]
-            self.basis['Zielbasis'] = self._get_namestring('Zielbasis').split()[1]
-        else:
-            self.basis['Startbasis'] = self._get_namestring('Startbasis')
-            self.basis['Zielbasis'] = self._get_namestring('Zielbasis')
-            
-    def _get_koords(self,):
-        berichtliste = self.bericht.splitlines()
-        self.koords = {}
-        for zeile in berichtliste:
-            if 'Startbasis' in zeile:
-                self.koords['Startbasis'] = zeile.split('<b>')[1].split('</b>')[0].strip()
-            elif 'Zielbasis' in zeile:
-                self.koords['Zielbasis'] = zeile.split('<b>')[1].split('</b>')[0].strip().split()[1]
-
-    def _get_alli(self,):
-        self.alli = {}
-        if len(self._get_namestring(wessen).split()) == 2:
-            self.alli['Startbasis'] =  self._get_namestring('Startbasis').split()[0]
-            self.alli['Zielbasis'] = self._get_namestring('Zielbasis').split()[0]
-
-    def _get_werte(self):
-        berichtliste = self.bericht.splitlines()
-        #flottensplit = lambda x: for item in x.strip().split(o'/')): 
-        flottensplit = lambda x: tuple([int(y) for y in x.strip().split('/')])
-        checkforempty = lambda x: x or ('0/0 ')
-        self.flotten = []
-        for zeile in berichtliste:
-            if 'debug:' in zeile:
-                self.flotten.append(zeile.split('<br>')[1].replace('org: ','').replace('</td>','').lstrip().split('surv:'))
-       # Angreifer haben nur eine Flotte
-        self.werte = {'StartbasisVorher':flottensplit(self.flotten[0][0]),'StartbasisNachher':flottensplit(checkforempty(self.flotten[0][1]))}
-        self.flotten.pop(0)
-        # Verteidiger sind demnach der ganze Rest
+    def _get_daten(self):
+        startregexp = re.compile(r'Startbasis <b> (.+)</b></br>&nbsp;von ?(\[.+\])? ?(.+)&nbsp;')
+        zielregexp = re.compile(r'Zielbasis <b> (.+)</b> </br>von&nbsp; ?(\[.+\])? ?(.+)&nbsp;')
+        self.startbasis['Koordinaten'],self.startbasis['Allianz'], self.startbasis['Name'] = startregexp.search(self.bericht).groups()
+        self.zielbasis['Koordinaten'], self.zielbasis['Allianz'], self.zielbasis['Name'] = zielregexp.search(self.bericht).groups()
         
-
-    def manipulate(self):
-        koordinaten = compile('[0-9]{1,2}x[0-9]{1,3}x[0-9]{1,3}')
-        kb_ohne_koords = koordinaten.sub('',self.bericht)
-        kb_viel_hübscher = kb_ohne_koords.replace('auf Planet','auf einem Planeten').replace('Login','The Dominion').replace('Planetare Verteidigung auf','Planetare Verteidigug')
-        self.bericht = kb_viel_hübscher
+    def _get_werte(self):
+        flottenregexp = re.compile(r'org: (\d+)/(\d+) surv: (\d+)?/(\d+)?')
+        flotten = flottenregexp.findall(self.bericht)
+        # Angreifer haben nur eine Flotte und sind schnell erledigt
+        # self.startbasis['Flotte'] = flotten.pop(0)
+        templiste = []
+        for item in flotten.pop(0):
+            templiste.append(int((item or 0)))
+        self.startbasis['Flotte'] = tuple(templiste)
+        self.startbasis['MP'] = (self.startbasis['Flotte'][0] + self.startbasis['Flotte'][1]) / 200.0
+        # Verteidiger haben mehrere + Defense aber das zählen wir alles zusammen
+        AttVorher, DefVorher, AttNachher, DefNachher = 0,0,0,0
+        for item in flotten:
+            AttVorher += int((item[0]) or 0)
+            DefVorher += int((item[1]) or 0)
+            AttNachher += int((item[2]) or 0)
+            DefNachher += int((item[3]) or 0)
+        self.zielbasis['Flotte'] = (AttVorher, DefVorher, AttNachher, DefNachher)
+        self.zielbasis['MP'] = (AttVorher + DefVorher) / 200.0
+        
+    def _get_verluste(self):
+        StartbasisVerluste = (abs(self.startbasis['Flotte'][0] - self.startbasis['Flotte'][2]), abs(self.startbasis['Flotte'][1] - self.startbasis['Flotte'][3]))
+        ZielbasisVerluste = (abs(self.zielbasis['Flotte'][0] - self.zielbasis['Flotte'][2]), abs(self.zielbasis['Flotte'][1] - self.zielbasis['Flotte'][3]))
+        self.startbasis['Verluste'] = StartbasisVerluste
+        self.zielbasis['Verluste'] = ZielbasisVerluste
+        self.startbasis['MPVerluste'] = (StartbasisVerluste[0] + StartbasisVerluste[1]) / 200
+        self.zielbasis['MPVerluste'] = (ZielbasisVerluste[0] + ZielbasisVerluste[1]) / 200 
 
     def save(self):
         berichtdatei = open(savedir + self.id,'w')
