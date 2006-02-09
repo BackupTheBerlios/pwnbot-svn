@@ -4,8 +4,9 @@
 from urllib import urlopen
 from os import path
 from gzip import GzipFile
-from time import strptime
+from time import strptime, strftime
 from re import compile
+from sys import argv
 
 # Konfiguration
 # Mit was soll die URl anfangen?
@@ -165,6 +166,9 @@ class kampfbericht:
         }
         self.template = template
 
+    def _make_namestring(self):
+        self.namestring = '%(Angreiferallianz)s%(Angreifername)s-%(Verteidigerallianz)s-%(Verteidigername)s-%(Zeit)s' % {'Angreiferallianz':self.startbasis['Allianz'],'Angreifername':self.startbasis['Name'],'Verteidigerallianz':self.zielbasis['Allianz'],'Verteidigername':self.zielbasis['Name'],'Zeit':strftime('%Y%m%d-%H%M',self.zeit)}
+        
     def _insert_template(self):
         berichtliste = self.bericht.splitlines()
         del berichtliste[berichtliste.index('                <td bgcolor="#2A2A2A" align="right">Gesamt&nbsp;<br>(netto)&nbsp;</td>') + 2]
@@ -177,8 +181,24 @@ class kampfbericht:
         bericht = koordinatenregexp.sub('',bericht)
         bericht = bericht.replace('Login','The Dominion')
         bericht = bericht.replace('auf Planet','auf einem Planeten')
+        bericht = bericht.replace('<title>X-Wars - The Third Legend (Gameserver)</title>','<title>%s</title>' % self.namestring)
+        bericht = bericht.replace('Schiffe von','Schiffe')
+        bericht = bericht.replace('Verteidigung auf','Verteidigung')
         self.bearbeiteterbericht = bericht.splitlines()
         
     def save(self):
-        berichtdatei = open(savedir + self.id,'w')
+        self.dateiname = savedir + self.namestring.replace('[','').replace(']','-') + '.html'
+        berichtdatei = open(self.dateiname,'w')
         berichtdatei.writelines(self.bearbeiteterbericht)
+
+if __name__ == "__main__":
+    kb = kampfbericht(argv[1])
+    kb._get_daten()
+    kb._get_werte()
+    kb._get_verluste()
+    kb._make_template()
+    kb._insert_template()
+    kb._make_namestring()
+    kb.manipulate()
+    kb.save()
+    print kb.dateiname
