@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-# -*- coding: iso8859-15 -*-
+# -*- coding: utf-8 -*-
 
 # ## ### ### ### ### ### ### ### ### ### ### ###
 # ircbot

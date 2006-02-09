@@ -1,6 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
+# ## ### ### ### ### ### ### ### ### ### ### ###
+# xwars
+# $Author$
+# $Date$
+# $Rev$
+# #############################################
+# # Ein library für verschiedene Funktionen im#
+# # Browsergame X-Wars                        #
+# # ### ### ### ### ### ### ### ### ### ### ### 
+
+# was an Modulen gebraucht wird
 from urllib import urlopen
 from os import path
 from gzip import GzipFile
@@ -8,62 +19,72 @@ from time import strptime, strftime
 from re import compile
 from sys import argv
 
-# Konfiguration
-# Mit was soll die URl anfangen?
-urlstart = 'http://reports.xwars.gamigo.de/'
-cachedir = '/home/tiax/xwars/parser/cache/'
-savedir = '/home/tiax/xwars/parser/save/'
-
 class kampfbericht:
+    '''X-Wars Kampfberichte sind ein tolles Objekt. 
+
+    Erwartet: URL als String, sollte mit dem in der Konfiguration definierten 
+    String anfangen, ist sicherheitstechnisch wohl eine ganz gute Idee'''
+    
+    # Konfiguration
+    # Mit was soll die URl anfangen?
+    urlstart = 'http://reports.xwars.gamigo.de/'
+    cachedir = '/home/tiax/xwars/parser/cache/'
+    savedir = '/home/tiax/xwars/parser/save/'
+
+
     def __init__(self,url):
-        if not path.isdir(cachedir):
+        '''wichtige Dinge, die vorher zu klären sind'''
+        if not path.isdir(self.cachedir): # gibts die wichtigsten Verzeichnisse?
             raise IOError('Cachedir existiert nicht')
-        if not path.isdir(savedir):
+        if not path.isdir(self.savedir):
             raise IOError('Savedir existiert nicht')
-        self.startbasis = {}
-        self.zielbasis = {}
+        self.startbasis = {} # damit die Flottenfunktionen halbwegs 
+        self.zielbasis = {}  # voneinander aufgerufen werden koennen
         self.url = url    
-        self._get_id()
-        self._get_kb()
 
     def _get_id(self):
-        '''überprüft kampfbericht-urls auf ihre gültigkeit
-
-        gets: url/string
-        returns: kampfberichtid/string'''
+        '''überprüft kampfbericht-urls auf ihre gültigkeit'''
         
-        if not self.url.startswith(urlstart):
+        if not self.url.startswith(self.urlstart): # kleiner Schutz gegen allzugroßen Unfug
             raise IOError('Ungültiger Server')
-        if not (self.url.split('=')[1].startswith('combat') and self.url.split('=')[1].endswith('.html')):
+        if not (self.url.split('=')[1].startswith('combat') \
+            and self.url.split('=')[1].endswith('.html')):
             raise IOError('Ugültige ID')
         else:
             self.id =  self.url.split('=')[1].rstrip('.html')
 
     def _get_kb(self):
         '''holt den kampfbericht hervor 
-        überprüft zunächst, ob er vielleicht bereits abgerufen worden ist und lädt dann aus dem cache'''
-        if path.isfile(cachedir + self.id):
-            self.bericht = GzipFile(cachedir + self.id,'r').read()
+        überprüft zunächst, ob er vielleicht bereits abgerufen worden ist
+        und lädt dann aus dem cache'''
+        if path.isfile(self.cachedir + self.id):
+            self.bericht = GzipFile(self.cachedir + self.id,'r').read()
         else:
-            bericht = urlopen('%(urlstart)s?id=%(berichtid)s.html' % {'urlstart':urlstart,'berichtid':self.id}).read()
-            cachedatei = GzipFile(cachedir + self.id,'w')
+            bericht = urlopen('%(urlstart)s?id=%(berichtid)s.html' % \
+            {'urlstart':self.urlstart,'berichtid':self.id}).read()
+            cachedatei = GzipFile(self.cachedir + self.id,'w')
             cachedatei.write(bericht)
             cachedatei.close()
             self.bericht =  bericht
 
     def _get_daten(self):
+        '''extrahiert Daten über die teilnehmenden Personen: Koordinaten, Allianz und Name'''
         startregexp = compile(r'Startbasis <b>.*(\d{1,2}x\d{1,3}x\d{1,3})</b></br>&nbsp;von ?(\[.+\])? ?(.+)&nbsp;')
         zielregexp = compile(r'Zielbasis <b>.*(\d{1,2}x\d{1,3}x\d{1,3})</b> </br>von&nbsp; ?(\[.+\])? ?(.+)&nbsp;')
         uhrzeitregexp = compile(r'Zeit <b>(\d+.\d+.\d+) (\d+:\d+:\d+.*)</b>')
-        self.startbasis['Koordinaten'],self.startbasis['Allianz'], self.startbasis['Name'] = startregexp.search(self.bericht).groups()
-        self.zielbasis['Koordinaten'], self.zielbasis['Allianz'], self.zielbasis['Name'] = zielregexp.search(self.bericht).groups()
+        self.startbasis['Koordinaten'],\
+        self.startbasis['Allianz'],\
+        self.startbasis['Name'] = startregexp.search(self.bericht).groups()
+        self.zielbasis['Koordinaten'],\
+        self.zielbasis['Allianz'], \
+        self.zielbasis['Name'] = zielregexp.search(self.bericht).groups()
         self.zeit = strptime(" ".join(uhrzeitregexp.search(self.bericht).groups()), '%d.%m.%Y %H:%M:%S')
         
     def _get_werte(self):
+        '''Holt sich die Flottenwerte, Verluste noch nicht'''
         flottenregexp = compile(r'org: (\d+)/(\d+) surv: (\d+)?/(\d+)?')
         flotten = flottenregexp.findall(self.bericht)
         # Angreifer haben nur eine Flotte und sind schnell erledigt
-        # self.startbasis['Flotte'] = flotten.pop(0)
         templiste = []
         for item in flotten.pop(0):
             templiste.append(int((item or 0)))
@@ -72,14 +93,15 @@ class kampfbericht:
         # Verteidiger haben mehrere + Defense aber das zählen wir alles zusammen
         AttVorher, DefVorher, AttNachher, DefNachher = 0,0,0,0
         for item in flotten:
-            AttVorher += int((item[0]) or 0)
-            DefVorher += int((item[1]) or 0)
-            AttNachher += int((item[2]) or 0)
-            DefNachher += int((item[3]) or 0)
+            AttVorher += int((item[0]) or 0) # or 0 ist notwendig
+            DefVorher += int((item[1]) or 0) # verlorene Flotten sind bei X-Wars
+            AttNachher += int((item[2]) or 0) # nicht 0 
+            DefNachher += int((item[3]) or 0) # sondern nix.
         self.zielbasis['Flotte'] = (AttVorher, DefVorher, AttNachher, DefNachher)
         self.zielbasis['MP'] = (AttVorher + DefVorher) / 200.0
         
     def _get_verluste(self):
+        '''Holt sich die Verluste. Es ist sinnvoll, erst die Werte zu holen'''
         StartbasisVerluste = (abs(self.startbasis['Flotte'][0] - self.startbasis['Flotte'][2]), abs(self.startbasis['Flotte'][1] - self.startbasis['Flotte'][3]))
         ZielbasisVerluste = (abs(self.zielbasis['Flotte'][0] - self.zielbasis['Flotte'][2]), abs(self.zielbasis['Flotte'][1] - self.zielbasis['Flotte'][3]))
         self.startbasis['Verluste'] = StartbasisVerluste
@@ -88,6 +110,7 @@ class kampfbericht:
         self.zielbasis['MPVerluste'] = (ZielbasisVerluste[0] + ZielbasisVerluste[1]) / 200.0
 
     def _make_template(self):
+        '''Füllt die ermittelten Daten und Werte ins Template ein'''
         template = '''</table><table border="0" cellspacing="0" cellpadding="0" width="665px"><tr><td height="12px"></td></tr><tr>
 		        <td width="282px"></td>
 		        <td width="45px" height="9" bgcolor="#2A2A2A"></td>
@@ -152,14 +175,14 @@ class kampfbericht:
 		</tr>
 </table>
 <table border="0" cellspacing="0" cellpadding="0" width="665px"><tr><td height="12px"></td></tr><tr>''' % {'Angreifername':self.startbasis['Name'],
-        'Angreiferwertevorher':str(self.startbasis['Flotte'][0]) + '/' + str(self.startbasis['Flotte'][1]),
-        'Angreiferwertenachher':str(self.startbasis['Flotte'][2]) + '/' + str(self.startbasis['Flotte'][3]),
+        'Angreiferwertevorher':str(self.startbasis['Flotte'][0]) + ' / ' + str(self.startbasis['Flotte'][1]),
+        'Angreiferwertenachher':str(self.startbasis['Flotte'][2]) + ' / ' + str(self.startbasis['Flotte'][3]),
         'Angreifermpvorher':self.startbasis['MP'],
         'Angreifermpnachher':(self.startbasis['MP'] - self.startbasis['MPVerluste']),
         'Angreifermpverlust':self.startbasis['MPVerluste'],
         'Verteidigername':self.zielbasis['Name'],
-        'Verteidigerwertevorher':str(self.zielbasis['Flotte'][0]) + '/' + str(self.zielbasis['Flotte'][1]),
-        'Verteidigerwertenachher':str(self.zielbasis['Flotte'][2]) + '/' + str(self.zielbasis['Flotte'][3]),
+        'Verteidigerwertevorher':str(self.zielbasis['Flotte'][0]) + ' / ' + str(self.zielbasis['Flotte'][1]),
+        'Verteidigerwertenachher':str(self.zielbasis['Flotte'][2]) + ' / ' + str(self.zielbasis['Flotte'][3]),
         'Verteidigermpvorher': self.zielbasis['MP'],
         'Verteidigermpnachher': (self.zielbasis['MP'] - self.zielbasis['MPVerluste']),
         'Verteidigermpverlust': self.zielbasis['MPVerluste']
@@ -167,15 +190,33 @@ class kampfbericht:
         self.template = template
 
     def _make_namestring(self):
+        '''Erstellt einen Dateinamentauglichen Namen für de Kampfbericht'''
         self.namestring = '%(Angreiferallianz)s%(Angreifername)s-%(Verteidigerallianz)s-%(Verteidigername)s-%(Zeit)s' % {'Angreiferallianz':self.startbasis['Allianz'],'Angreifername':self.startbasis['Name'],'Verteidigerallianz':self.zielbasis['Allianz'],'Verteidigername':self.zielbasis['Name'],'Zeit':strftime('%Y%m%d-%H%M',self.zeit)}
         
     def _insert_template(self):
+        '''fügt das ausgefüllte Template in den Kampfbericht ein'''
         berichtliste = self.bericht.splitlines()
         del berichtliste[berichtliste.index('                <td bgcolor="#2A2A2A" align="right">Gesamt&nbsp;<br>(netto)&nbsp;</td>') + 2]
         berichtliste.insert(berichtliste.index('                <td bgcolor="#2A2A2A" align="right">Gesamt&nbsp;<br>(netto)&nbsp;</td>') + 1,self.template)
         self.bearbeiteterbericht = berichtliste
 
+    def getreport(self):
+        '''Zusammenfassung: Bericht organisieren'''
+        self._get_id()
+        self._get_kb()
+
+    def analyze(self):
+        '''Zusammenfassung: Bericht analysieren und Daten ermitteln'''
+        self.getreport()
+        self._get_daten()
+        self._get_werte()
+        self._get_verluste()
+        self._make_namestring()
+
     def manipulate(self):
+        '''Zusammenfassung: Den original-Kampfbericht verändern'''
+        self._make_template()
+        self._insert_template()
         koordinatenregexp = compile(r'\d{1,2}x\d{1,3}x\d{1,3}')
         bericht = '\n'.join(self.bearbeiteterbericht)
         bericht = koordinatenregexp.sub('',bericht)
@@ -187,18 +228,14 @@ class kampfbericht:
         self.bearbeiteterbericht = bericht.splitlines()
         
     def save(self):
-        self.dateiname = savedir + self.namestring.replace('[','').replace(']','-') + '.html'
+        '''Den Bericht ins Dateisystem speichern'''
+        self.dateiname = self.savedir + self.namestring.replace('[','').replace(']','-') + '.html'
         berichtdatei = open(self.dateiname,'w')
         berichtdatei.writelines(self.bearbeiteterbericht)
 
 if __name__ == "__main__":
     kb = kampfbericht(argv[1])
-    kb._get_daten()
-    kb._get_werte()
-    kb._get_verluste()
-    kb._make_template()
-    kb._insert_template()
-    kb._make_namestring()
+    kb.analyze()
     kb.manipulate()
     kb.save()
     print kb.dateiname
