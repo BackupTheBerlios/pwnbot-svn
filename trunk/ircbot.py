@@ -14,10 +14,13 @@
 # # ### ### ### ### ### ### ### ### ### ### ### #
 
 # was an modulen gebraucht wird.
-import socket # für die IRC-Verbindung
-from sys import exit
+import socket # fÃ¼r die IRC-Verbindung
+import sys
+import time
+import os
+import xwars
 # es gibt mehrere Klassen. Die Verbindung als solche ist wohl die wichtigste und
-# wird als erstes aufgerufen. Sie stellt die Verbindung her und kümmert sich um
+# wird als erstes aufgerufen. Sie stellt die Verbindung her und kÃ¼mmert sich um
 # alles, was rein kommt. Nach der Verarbeitung der rohen Zeile wird ggf. eine
 # andere Klasse aufgerufen,
 
@@ -34,13 +37,13 @@ class ircverbindung:
     def _verbinde(self,server,nickname,ident=None,realname=None):
         '''stellt die Verbindung zum Server her und gibt zur Verarbeitung weiter
 
-        erhält:
+        erhÃ¤lt:
             server: string (host) oder tuple (host, port)
             nickname: string oder liste
             ident: optional string
             realname: optional string
 
-        gibt zurück:
+        gibt zurÃ¼ck:
             nichts
 
         ruft auf:
@@ -68,10 +71,10 @@ class ircverbindung:
     def _verarbeite_reingehendes(self):
         '''liest den Buffer aus und verteilt das Reingehende auf die Funktionen
 
-        erhält:
+        erhÃ¤lt:
             nichts
 
-        gibt zurück:
+        gibt zurÃ¼ck:
             nichts
 
         ruft auf:
@@ -90,7 +93,7 @@ class ircverbindung:
                 #log verbindung ist weg
                 break
             temp = self._lesebuffer.split('\n')
-            self._lesebuffer = temp.pop() # Die letzte Zeile wird zurückgestellt, da sie eventuell noch gar nicht ganz zu ende war. Wir empfangen nicht Zeilen- sondern Byteweise.
+            self._lesebuffer = temp.pop() # Die letzte Zeile wird zurÃ¼ckgestellt, da sie eventuell noch gar nicht ganz zu ende war. Wir empfangen nicht Zeilen- sondern Byteweise.
             for zeile in temp:
                 zeile = zeile.rstrip().split()
                 if zeile[0] == 'PING': # das wird hardcoded, weil man sonst recht einfach vom server fliegt, wenn das nicht geht. Keinen Unfug damit machen!
@@ -99,16 +102,16 @@ class ircverbindung:
                     try:
                         befehl = getattr(self,'on_%s' % zeile[1])
                         befehl(self._teile_zeile(zeile))
-                    except AttributeError: # es gibt wohl keine on_EVENT Funktion für das gefundene EVENT, also rufen wir den (optionalen) Handler dafür auf
+                    except AttributeError: # es gibt wohl keine on_EVENT Funktion fÃ¼r das gefundene EVENT, also rufen wir den (optionalen) Handler dafÃ¼r auf
                         self.on_UNBEKANNT(self._teile_zeile(zeile))
 
     def _teile_zeile(self, zeile):
         ''' teilt reingehendes in ein Dictionary auf
 
-        erhält:
+        erhÃ¤lt:
             zeile: eine reinkommende Zeile als Liste
 
-        gibt zurück:
+        gibt zurÃ¼ck:
             Dictionary:
                 ['quelle']['host'],['ident'],['nickname']: string
                 ['event']: string
@@ -134,14 +137,14 @@ class ircverbindung:
 
     def _teile_befehl(self,zeile):
         '''teilt erkannte Befehle in ein Dictionary auf. Was ein Befehl ist, wird in on_PRIVMSG behandelt.
-        erhält:
+        erhÃ¤lt:
             zeile: Dictionary:
                 ['quelle']['host'],['ident'],['nickname']: string
                 ['event']: string
                 ['ziel']: string
                 ['inhalt']: string
 
-        gibt zurück:
+        gibt zurÃ¼ck:
             ['quelle']['host'],['ident'],['nick']: string
             ['ziel']: string
             ['befehl']: string
@@ -170,22 +173,22 @@ class ircverbindung:
     def cmd_join(self, befehl):
         '''betritt Channel
 
-        erhält:
+        erhÃ¤lt:
             Dictionary:
                 ['argumente']: liste
 
         ruft auf:
-            join für jeden Eintrag in der liste ['argumente']'''
+            join fÃ¼r jeden Eintrag in der liste ['argumente']'''
         for channel in befehl['argumente']:
             self.join(channel)
 
     def cmd_say(self, befehl):
         '''sagt etwas in einem Channel
 
-        erhält:
+        erhÃ¤lt:
             befehl['argumente']: Liste
 
-        gibt zurück:
+        gibt zurÃ¼ck:
             nichts
 
         ruft auf:
@@ -197,15 +200,15 @@ class ircverbindung:
     def cmd_die(self,befehl):
         '''schaltet den Bot ab
 
-        erhält:
+        erhÃ¤lt:
             befehl['quelle']['ident']: string
 
-        gibt zurück:
+        gibt zurÃ¼ck:
             nichts
 
         ruft auf:
             quit mit einer Standardmessage, falls das Ident-Field stellt
-            ansonsten gibts ne notice zurück
+            ansonsten gibts ne notice zurÃ¼ck
         '''
         if befehl['quelle']['ident'] == 'tiax':
             #log
@@ -217,10 +220,10 @@ class ircverbindung:
     def cmd_ping(self,befehl):
         '''antwortet mit pong
 
-        erhält:
+        erhÃ¤lt:
             befehl['ziel']: string
 
-        gibt zurück:
+        gibt zurÃ¼ck:
             nichts
 
         ruft auf:
@@ -232,11 +235,11 @@ class ircverbindung:
             self.notice(befehl['quelle']['nickname'],'Pong')
 
     def cmd_raw(self,befehl):
-        '''lässt Rohdaten an den Server schicken, ist natürlich mit Vorsicht zu genießen.
-        erhält:
+        '''lÃ¤sst Rohdaten an den Server schicken, ist natÃ¼rlich mit Vorsicht zu genieÃŸen.
+        erhÃ¤lt:
             befehl[argumente] als Liste
 
-        gibt zurück:
+        gibt zurÃ¼ck:
             nichts
 
         ruft auf:
@@ -244,13 +247,20 @@ class ircverbindung:
         
         self.rawsend(" ".join(befehl['argumente']))
  
+    def cmd_parse(self,befehl):
+        '''parsed einen xwars-kampfbericht'''
+        url = befehl['argumente'][0]
+        kampfbericht = xwars.kampfbericht(url)
+        kampfbericht.analyze()
+        kampfbericht.manipulate()
+        kampfbericht.save()
+        self.msg(befehl['quelle']['nickname'],kampfbericht.dateiname)
 
-
-    # für allen möglichen Käse
+    # fÃ¼r allen mÃ¶glichen KÃ¤se
     def rawsend(self,rausgehendes):
         '''schickt Daten an den Server
 
-        erhält:
+        erhÃ¤lt:
             rausgehendes: string'''
         self.so.send('%s\r\n' % rausgehendes)
 
@@ -259,7 +269,7 @@ class ircverbindung:
     def join(self,channel,key=''):
         '''betritt Channel
 
-        erhält:
+        erhÃ¤lt:
             channel: string
             key: string (optional)
 
@@ -272,7 +282,7 @@ class ircverbindung:
     def msg(self,ziel,nachricht):
         '''schickt Nachrichten raus
 
-        erhält:
+        erhÃ¤lt:
             ziel: string
             nachricht: string
 
@@ -285,7 +295,7 @@ class ircverbindung:
     def notice(self,ziel,nachricht):
         '''schickt eine Nachricht als Notice raus
 
-        erhält:
+        erhÃ¤lt:
             ziel: string
             nachricht: string
 
@@ -298,7 +308,7 @@ class ircverbindung:
     def quit(self,quitmessage):
         '''macht den Bot aus
 
-        erhält:
+        erhÃ¤lt:
             quitmessage: string
 
         ruft auf:
@@ -319,7 +329,7 @@ class ircverbindung:
             self.currentnickname = self.nicknames.pop(0)
         except IndexError:
             #log
-            exit('Nicknames sind ausgegangen')
+            sys.exit('Nicknames sind ausgegangen')
         #log
         self.rawsend('NICK %s' % self.currentnickname)
 
@@ -347,4 +357,22 @@ class ircverbindung:
         pass
 
 if __name__ == '__main__':
+    if "--daemon" in sys.argv:
+        # wir machen einen daemon
+        if not (os.fork()):
+            # eigene session erstellen
+            os.setsid()
+            sys.stdin.close()
+            sys.stdout = open('/home/tiax/daemonlog','w')
+            sys.stderr = sys.stdout
+            if not (os.fork()):
+                ppid = os.getppid()
+                while (ppid != 1):
+                    time.sleep(0.5)
+                    ppid = os.getppid()
+            else:
+                os._exit(0)
+        else:
+            os.wait()
+            sys.exit()
     GameSurge = ircverbindung(('irc.eu.gamesurge.net',6667),['pwn','own','pwn0r'])
