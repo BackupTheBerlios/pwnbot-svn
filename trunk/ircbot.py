@@ -30,6 +30,7 @@ class ircverbindung:
         '''gleich verbinden, wenn die klasse erstellt wird'''
         self._lesebuffer = '' # wir brauchen einen leeren Buffer, in den geschrieben wird. Ein Buffer wird gebraucht, weil nicht alles sofort ankommt bei lag usw
         #log
+        print 'Verbindung zu %s wird hergestellt.' 
         self._verbinde(server,nickname,ident,realname) # gleich am Anfang wird verbunden
 
     # Grundlegendes
@@ -64,6 +65,7 @@ class ircverbindung:
             server = (server, 6667)
         self.so.connect(server)
         #log verbindung mit ident und realname
+        print 'Verwende Nick %s und Ident %s' % (self.currentnickname, ident)
         self.so.send('USER %s * * :%s\r\n' % (ident, realname))
         self.so.send('NICK %s\r\n' % self.currentnickname)
         self._verarbeite_reingehendes() # Die Verbindung sollte hergestellt sein. Wir brauchen einen Loop der aus dem Buffer liest und verarbeitet
@@ -88,9 +90,11 @@ class ircverbindung:
                 self._lesebuffer = self.so.recv(8192)
             except socket.error:
                 #log verbindung ist weg
+                print "Verbindung unterbrochen"
                 break
             if len(self._lesebuffer) == 0:
                 #log verbindung ist weg
+                print "Verbindung unterbrochen"
                 break
             temp = self._lesebuffer.split('\n')
             self._lesebuffer = temp.pop() # Die letzte Zeile wird zurückgestellt, da sie eventuell noch gar nicht ganz zu ende war. Wir empfangen nicht Zeilen- sondern Byteweise.
@@ -103,6 +107,8 @@ class ircverbindung:
                         befehl = getattr(self,'on_%s' % zeile[1])
                         befehl(self._teile_zeile(zeile))
                     except AttributeError: # es gibt wohl keine on_EVENT Funktion für das gefundene EVENT, also rufen wir den (optionalen) Handler dafür auf
+                        #log
+                        print 'EE Nicht erkanntes Event:' % zeile
                         self.on_UNBEKANNT(self._teile_zeile(zeile))
 
     def _teile_zeile(self, zeile):
@@ -155,18 +161,23 @@ class ircverbindung:
 
         '''
         befehl = {}
-        befehl['quelle'] = zeile['quelle']
-        befehl['ziel'] = zeile['ziel']
-        if zeile['inhalt'][0].startswith(self.currentnickname):
-            zeile['inhalt'].pop(0)
-        befehl['befehl'] = zeile['inhalt'][0]
-        befehl['argumente'] = zeile['inhalt'][1:]
+        try:
+            befehl['quelle'] = zeile['quelle']
+            befehl['ziel'] = zeile['ziel']
+            if zeile['inhalt'][0].startswith(self.currentnickname):
+                zeile['inhalt'].pop(0)
+            befehl['befehl'] = zeile['inhalt'][0]
+            befehl['argumente'] = zeile['inhalt'][1:]
+        except IndexError:
+            pass
         try:
             temp = getattr(self,'cmd_%s' % befehl['befehl'])
-            #llog befehl erhalte
+            #log befehl erhalte
+            print 'Befehl: %s' % befehl
             temp(befehl)
         except AttributeError: # keine Funktion mit cmd_BEFEHL gefunden.
             #log
+            print 'Befehl nicht gefunden: %s' % befehl
             self.notice(befehl['quelle']['nickname'],'Befehl nicht gefunden: %s' % befehl['befehl'])
 
     # Befehlshandler
@@ -180,6 +191,8 @@ class ircverbindung:
         ruft auf:
             join für jeden Eintrag in der liste ['argumente']'''
         for channel in befehl['argumente']:
+            #log
+            print 'Betrete %s' % channel
             self.join(channel)
 
     def cmd_say(self, befehl):
@@ -195,6 +208,7 @@ class ircverbindung:
             msg mit argumente[0] als Ziel der Message und argumente[1:] als Message'''
         ziel = befehl['argumente'][0]
         nachricht = " ".join(befehl['argumente'][1:])
+        print 'Nachricht an %s: %s' % (ziel,nachricht)
         self.msg(ziel,nachricht)
 
     def cmd_die(self,befehl):
@@ -244,17 +258,25 @@ class ircverbindung:
 
         ruft auf:
             raw mit genau dem, was der user befiehlt'''
-        
+        #log
+        print 'Raw: %s' % befehl
         self.rawsend(" ".join(befehl['argumente']))
  
     def cmd_parse(self,befehl):
         '''parsed einen xwars-kampfbericht'''
-        url = befehl['argumente'][0]
-        kampfbericht = xwars.kampfbericht(url)
-        kampfbericht.analyze()
-        kampfbericht.manipulate()
-        kampfbericht.save()
-        self.msg(befehl['quelle']['nickname'],kampfbericht.dateiname)
+        try:
+            url = befehl['argumente'][0]
+        except IndexEror:
+            self.msg(befehl['quelle']['nickname'],'Keine URL angegeben')
+        try:
+            kampfbericht = xwars.kampfbericht(url)
+        except:
+            self.msg(befehl['quelle']['nickname'],'Fehler')
+        else:
+            kampfbericht.analyze()
+            kampfbericht.manipulate()
+            kampfbericht.save()
+            self.msg(befehl['quelle']['nickname'],'URL: ' + kampfbericht.dateiname)
 
     # für allen möglichen Käse
     def rawsend(self,rausgehendes):
@@ -337,6 +359,7 @@ class ircverbindung:
         '''die IRC Verbindung ist gerade hergestellt worden
         Das ist die ideale Gelegenheit, am Anfang auszufuehrende Befehle einzugeben'''
         #log
+        print 'Verbindung hergestellt'
         pass
 
     # Textevents
@@ -345,8 +368,9 @@ class ircverbindung:
         '''bearbeitet eingehende Nachrichten'''
         if zeile['inhalt'][0].startswith(self.currentnickname) or zeile['ziel'] == self.currentnickname: # der bot wird entweder angesprochen oder er kriegt eine private message
             self._teile_befehl(zeile)
-        # Ende DEBUG
     
+        print 'Nachricht: %s' % zeile
+
     def on_NICK(self,zeile):
         '''jemand hat den nick geandert. Das koennten auch wir sein! damit der Bot die Befehle trotzdem als an ihn gerichtet erkennt, muss er davon in Kenntniss gesetzt werden'''
         if zeile['quelle']['nickname'] == self.currentnickname:
