@@ -30,7 +30,7 @@ class ircverbindung:
         '''gleich verbinden, wenn die klasse erstellt wird'''
         self._lesebuffer = '' # wir brauchen einen leeren Buffer, in den geschrieben wird. Ein Buffer wird gebraucht, weil nicht alles sofort ankommt bei lag usw
         #log
-        print 'Verbindung zu %s wird hergestellt.' 
+        print 'Verbindung zu %s wird hergestellt.' % str(server)
         self._verbinde(server,nickname,ident,realname) # gleich am Anfang wird verbunden
 
     # Grundlegendes
@@ -266,17 +266,20 @@ class ircverbindung:
         '''parsed einen xwars-kampfbericht'''
         try:
             url = befehl['argumente'][0]
-        except IndexEror:
+        except IndexError:
             self.msg(befehl['quelle']['nickname'],'Keine URL angegeben')
-        try:
-            kampfbericht = xwars.kampfbericht(url)
-        except:
-            self.msg(befehl['quelle']['nickname'],'Fehler')
         else:
-            kampfbericht.analyze()
-            kampfbericht.manipulate()
-            kampfbericht.save()
-            self.msg(befehl['quelle']['nickname'],'URL: ' + kampfbericht.dateiname)
+            kampfbericht = xwars.kampfbericht(url)
+            try:
+                kampfbericht.analyze()
+            except (IOError), meldung:
+                self.notice(befehl['quelle']['nickname'],meldung)
+            except AttributeError:
+                self.notice(befehl['quelle']['nickname'],'Ungültige URL')
+            else:
+                kampfbericht.manipulate()
+                kampfbericht.save()
+                self.notice(befehl['quelle']['nickname'],'URL: ' + kampfbericht.dateiname)
 
     # für allen möglichen Käse
     def rawsend(self,rausgehendes):
