@@ -44,15 +44,16 @@ class kampfbericht:
 
     def _get_id(self):
         '''überprüft kampfbericht-urls auf ihre gültigkeit'''
-        
+        urlregexp = compile('http:\/\/reports.xwars.gamigo.de/.*id=(.*)\.html')
         if not self.url.startswith(self.urlstart): # kleiner Schutz gegen allzugroßen Unfug
             raise IOError('Ungültiger Server')
-        if not (self.url.split('=')[1].startswith('combat') \
-            and self.url.split('=')[1].endswith('.html')):
-            raise IOError('Ugültige ID')
-        else:
-            self.id =  self.url.split('=')[1].rstrip('.html')
-
+        try:
+            self.id = urlregexp.search(self.url).groups()[0]
+        except AttributeError:
+            raise IOError('Ungültige URL')
+        if not self.id:
+            raise IOError('Ungültige URL')
+        
     def _get_kb(self):
         '''holt den kampfbericht hervor 
         überprüft zunächst, ob er vielleicht bereits abgerufen worden ist
