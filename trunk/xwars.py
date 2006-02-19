@@ -18,6 +18,7 @@ from gzip import GzipFile
 from time import strptime, strftime
 from re import compile
 from sys import argv
+from locale import format, setlocale, LC_ALL
 
 class kampfbericht:
     '''X-Wars Kampfberichte sind ein tolles Objekt. 
@@ -112,6 +113,8 @@ class kampfbericht:
 
     def _make_template(self):
         '''Füllt die ermittelten Daten und Werte ins Template ein'''
+        setlocale(LC_ALL,'')
+        nice = lambda x: format('%s',x,True)
         template = '''</table><table border="0" cellspacing="0" cellpadding="0" width="665px"><tr><td height="12px"></td></tr><tr>
 		        <td width="282px"></td>
 		        <td width="45px" height="9" bgcolor="#2A2A2A"></td>
@@ -148,9 +151,9 @@ class kampfbericht:
             <td width=  "5px" ></td>
 		    <td bgcolor="#1A1A1A">&nbsp;%(Angreiferwertevorher)s</td>
 		    <td bgcolor="#1A1A1A">%(Angreiferwertenachher)s</td>
-		    <td bgcolor="#1A1A1A">%(Angreifermpvorher).2f</td>
-		    <td bgcolor="#1A1A1A">%(Angreifermpnachher).2f</td>
-		    <td bgcolor="#1A1A1A">%(Angreifermpverlust).2f</td>
+		    <td bgcolor="#1A1A1A">%(Angreifermpvorher)s</td>
+		    <td bgcolor="#1A1A1A">%(Angreifermpnachher)s</td>
+		    <td bgcolor="#1A1A1A">%(Angreifermpverlust)s</td>
 		</tr>
 		<tr><td bgcolor="#444444" height="1px"></td><td colspan="12" bgcolor="#000000"></tr>
 		<tr><td bgcolor="#2A2A2A" height="9"></td></tr>
@@ -159,9 +162,9 @@ class kampfbericht:
             <td width=  "5px" ></td>
 		    <td bgcolor="#1A1A1A">&nbsp;%(Verteidigerwertevorher)s</td>
 		    <td bgcolor="#1A1A1A">%(Verteidigerwertenachher)s</td>
-		    <td bgcolor="#1A1A1A">%(Verteidigermpvorher).2f</td>
-		    <td bgcolor="#1A1A1A">%(Verteidigermpnachher).2f</td>
-		    <td bgcolor="#1A1A1A">%(Verteidigermpverlust).2f</td>
+		    <td bgcolor="#1A1A1A">%(Verteidigermpvorher)s</td>
+		    <td bgcolor="#1A1A1A">%(Verteidigermpnachher)s</td>
+		    <td bgcolor="#1A1A1A">%(Verteidigermpverlust)s</td>
 		</tr>
 		<tr><td bgcolor="#444444" height="1px"></td><td colspan="12" bgcolor="#000000"></tr>
         <tr><td bgcolor="#2A2A2A" height="9"></td></tr>
@@ -176,17 +179,17 @@ class kampfbericht:
 		</tr>
 </table>
 <table border="0" cellspacing="0" cellpadding="0" width="665px"><tr><td height="12px"></td></tr><tr>''' % {'Angreifername':self.startbasis['Name'],
-        'Angreiferwertevorher':str(self.startbasis['Flotte'][0]) + ' / ' + str(self.startbasis['Flotte'][1]),
-        'Angreiferwertenachher':str(self.startbasis['Flotte'][2]) + ' / ' + str(self.startbasis['Flotte'][3]),
-        'Angreifermpvorher':self.startbasis['MP'],
-        'Angreifermpnachher':(self.startbasis['MP'] - self.startbasis['MPVerluste']),
-        'Angreifermpverlust':self.startbasis['MPVerluste'],
+        'Angreiferwertevorher':nice(self.startbasis['Flotte'][0]) + ' / ' + nice(self.startbasis['Flotte'][1]),
+        'Angreiferwertenachher':nice(self.startbasis['Flotte'][2]) + ' / ' + nice(self.startbasis['Flotte'][3]),
+        'Angreifermpvorher':nice(self.startbasis['MP']),
+        'Angreifermpnachher':nice(self.startbasis['MP'] - self.startbasis['MPVerluste']),
+        'Angreifermpverlust':nice(self.startbasis['MPVerluste']),
         'Verteidigername':self.zielbasis['Name'],
-        'Verteidigerwertevorher':str(self.zielbasis['Flotte'][0]) + ' / ' + str(self.zielbasis['Flotte'][1]),
-        'Verteidigerwertenachher':str(self.zielbasis['Flotte'][2]) + ' / ' + str(self.zielbasis['Flotte'][3]),
-        'Verteidigermpvorher': self.zielbasis['MP'],
+        'Verteidigerwertevorher':nice(self.zielbasis['Flotte'][0]) + ' / ' + nice(self.zielbasis['Flotte'][1]),
+        'Verteidigerwertenachher':nice(self.zielbasis['Flotte'][2]) + ' / ' + nice(self.zielbasis['Flotte'][3]),
+        'Verteidigermpvorher': nice(self.zielbasis['MP']),
         'Verteidigermpnachher': (self.zielbasis['MP'] - self.zielbasis['MPVerluste']),
-        'Verteidigermpverlust': self.zielbasis['MPVerluste']
+        'Verteidigermpverlust': nice(self.zielbasis['MPVerluste'])
         }
         self.template = template
 
