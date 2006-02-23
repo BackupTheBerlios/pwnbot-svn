@@ -188,7 +188,7 @@ class kampfbericht:
         'Verteidigerwertevorher':nice(self.zielbasis['Flotte'][0]) + ' / ' + nice(self.zielbasis['Flotte'][1]),
         'Verteidigerwertenachher':nice(self.zielbasis['Flotte'][2]) + ' / ' + nice(self.zielbasis['Flotte'][3]),
         'Verteidigermpvorher': nice(self.zielbasis['MP']),
-        'Verteidigermpnachher': (self.zielbasis['MP'] - self.zielbasis['MPVerluste']),
+        'Verteidigermpnachher': nice(self.zielbasis['MP'] - self.zielbasis['MPVerluste']),
         'Verteidigermpverlust': nice(self.zielbasis['MPVerluste'])
         }
         self.template = template
