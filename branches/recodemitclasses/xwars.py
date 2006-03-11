@@ -9,7 +9,7 @@
 # #############################################
 # # Ein library für verschiedene Funktionen im#
 # # Browsergame X-Wars                        #
-# # ### ### ### ### ### ### ### ### ### ### ### 
+# # ### ### ### ### ### ### ### ### ### ### ###
 
 # was an Modulen gebraucht wird
 from urllib import urlopen
@@ -21,16 +21,16 @@ from sys import argv
 from locale import format, setlocale, LC_ALL
 
 class kampfbericht:
-    '''X-Wars Kampfberichte sind ein tolles Objekt. 
+    '''X-Wars Kampfberichte sind ein tolles Objekt.
 
-    Erwartet: URL als String, sollte mit dem in der Konfiguration definierten 
+    Erwartet: URL als String, sollte mit dem in der Konfiguration definierten
     String anfangen, ist sicherheitstechnisch wohl eine ganz gute Idee'''
-    
+
     # Konfiguration
     # Mit was soll die URl anfangen?
     urlstart = 'http://reports.xwars.gamigo.de/'
-    cachedir = '/home/tiax/xwars/parser/cache/'
-    savedir = '/home/tiax/xwars/parser/save/'
+    cachedir = 'C:\\Dokumente und Einstellungen\\tiax\\Desktop\\xwars\\cache\\'
+    savedir = 'C:\\Dokumente und Einstellungen\\tiax\\Desktop\\xwars\\save\\'
 
 
     def __init__(self,url):
@@ -39,9 +39,9 @@ class kampfbericht:
             raise IOError('Cachedir existiert nicht')
         if not path.isdir(self.savedir):
             raise IOError('Savedir existiert nicht')
-        self.startbasis = {} # damit die Flottenfunktionen halbwegs 
+        self.startbasis = {} # damit die Flottenfunktionen halbwegs
         self.zielbasis = {}  # voneinander aufgerufen werden koennen
-        self.url = url    
+        self.url = url
 
     def _get_id(self):
         '''überprüft kampfbericht-urls auf ihre gültigkeit'''
@@ -54,9 +54,9 @@ class kampfbericht:
             raise IOError('Ungültige URL')
         if not self.id:
             raise IOError('Ungültige URL')
-        
+
     def _get_kb(self):
-        '''holt den kampfbericht hervor 
+        '''holt den kampfbericht hervor
         überprüft zunächst, ob er vielleicht bereits abgerufen worden ist
         und lädt dann aus dem cache'''
         if path.isfile(self.cachedir + self.id):
@@ -81,7 +81,7 @@ class kampfbericht:
         self.zielbasis['Allianz'], \
         self.zielbasis['Name'] = zielregexp.search(self.bericht).groups()
         self.zeit = strptime(" ".join(uhrzeitregexp.search(self.bericht).groups()), '%d.%m.%Y %H:%M:%S')
-        
+
     def _get_werte(self):
         '''Holt sich die Flottenwerte, Verluste noch nicht'''
         flottenregexp = compile(r'org: (\d+)/(\d+) surv: (\d+)?/(\d+)?')
@@ -97,11 +97,11 @@ class kampfbericht:
         for item in flotten:
             AttVorher += int((item[0]) or 0) # or 0 ist notwendig
             DefVorher += int((item[1]) or 0) # verlorene Flotten sind bei X-Wars
-            AttNachher += int((item[2]) or 0) # nicht 0 
+            AttNachher += int((item[2]) or 0) # nicht 0
             DefNachher += int((item[3]) or 0) # sondern nix.
         self.zielbasis['Flotte'] = (AttVorher, DefVorher, AttNachher, DefNachher)
         self.zielbasis['MP'] = (AttVorher + DefVorher) / 200.0
-        
+
     def _get_verluste(self):
         '''Holt sich die Verluste. Es ist sinnvoll, erst die Werte zu holen'''
         StartbasisVerluste = (abs(self.startbasis['Flotte'][0] - self.startbasis['Flotte'][2]), abs(self.startbasis['Flotte'][1] - self.startbasis['Flotte'][3]))
@@ -130,7 +130,7 @@ class kampfbericht:
 		        <td xwidth="326px" colspan="2" xbgcolor="#2A2A2A"><font color="#222222">TDM Warreport v1 py</td>
 		  </tr>
                </table>
-		    
+
 		<table border="0" cellspacing="0" cellpadding="0" width="665px">
 		<tr><td bgcolor="#2A2A2A" height="9px"></td></tr>
 		<tr>
@@ -196,7 +196,7 @@ class kampfbericht:
     def _make_namestring(self):
         '''Erstellt einen Dateinamentauglichen Namen für de Kampfbericht'''
         self.namestring = '%(Angreiferallianz)s%(Angreifername)s-%(Verteidigerallianz)s-%(Verteidigername)s-%(Zeit)s' % {'Angreiferallianz':self.startbasis['Allianz'],'Angreifername':self.startbasis['Name'],'Verteidigerallianz':self.zielbasis['Allianz'],'Verteidigername':self.zielbasis['Name'],'Zeit':strftime('%Y%m%d-%H%M',self.zeit)}
-        
+
     def _insert_template(self):
         '''fügt das ausgefüllte Template in den Kampfbericht ein'''
         berichtliste = self.bericht.splitlines()
@@ -230,7 +230,7 @@ class kampfbericht:
         bericht = bericht.replace('Schiffe von','Schiffe')
         bericht = bericht.replace('Verteidigung auf','Verteidigung')
         self.bearbeiteterbericht = bericht.splitlines()
-        
+
     def save(self):
         '''Den Bericht ins Dateisystem speichern'''
         self.dateiname = self.savedir + self.namestring.replace('[','').replace(']','-') + '.html'
