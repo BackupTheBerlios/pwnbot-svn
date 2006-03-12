@@ -18,7 +18,6 @@ import socket
 import sys
 import time
 import os
-import xwars
 import logging
 import events
 from logging.handlers import RotatingFileHandler
@@ -26,6 +25,7 @@ from logging.handlers import RotatingFileHandler
 logger = None
 
 def logstart(size):
+    '''erstellt das Logding'''
     global logger
     logger = logging.getLogger()
     handler = RotatingFileHandler('ircbot.log','a',size * 1024, 5)
@@ -87,13 +87,18 @@ class ircevent(object):
             self.befehl = {'befehl':befehl,'argumente':argumente}
 
 class ircverbindung(object):
+    '''eine Verbindung zum IRC
+    
+    erhält (server,port) oder nur server
+    nickname'''
     def __init__(self,server,nickname,ident=None,realname=None):
         global logger
         self._buffer = ''
-        logger.debug('Verbindung zu %s wird hergestellt' % server)
+        logger.debug('Verbindung zu %s:%s wird hergestellt' % server)
         self.Verbinde(server,nickname,ident,realname)
 
     def Verbinde(self,server,nickname,ident=None,realname=None):
+        '''stellt die Verbindung her'''
         self.nicknames = []
         if type(nickname) == type([]):
             self.nicknames.extend(nickname)
@@ -107,12 +112,13 @@ class ircverbindung(object):
             self._socket.connect(server)
         except TypeError:
             self._socket.connect((server,6667))
-        logger.info('Verbindung zu %s wurde hergestellt' % server)
+        logger.info('Verbindung zu %s:%s wurde hergestellt' % server)
         self.rawsend('USER %s * * :%s' % (ident, realname))
         self.rawsend('NICK %s' % self.currentnickname)
         self._verarbeite()
 
     def _verarbeite(self):
+        '''Loop, liest aus dem Puffer und verarbeitet das Ergebnis'''
         while True:
             try:
                 self._buffer = self._socket.recv(8192)
@@ -134,26 +140,52 @@ class ircverbindung(object):
                     handler(event)
 
     def rawsend(self, zeile):
+        '''schickt etwas an den Server'''
         self._socket.send('%s\r\n' % zeile)
 
     def join(self,channel,key=''):
+        '''betritt einen Channel'''
         logger.debug('Betrete %s' % channel)
         self.rawsend('JOIN %s %s' % (channel,key))
 
     def part(self,channel):
+        '''Verlässt einen Channel'''
         logger.debug('Verlasse %s' % channel)
         self.rawsend('PART %s' % channel)
 
     def quit(self,quitmessage='weq'):
+        '''Beendet die Verbindung'''
         logger.info('Beende die Verbindung')
         self.rawsend('QUIT :%s' % quitmessage)
 
     def msg(self,ziel,message):
+        '''Schickt eine Nachricht'''
         logger.debug('Message an %s: %s' % (ziel, message))
         self.rawsend('PRIVMSG %s :%s' % (ziel, message))
 
     def notice(self,ziel,message):
+        '''Schickt eine Notice'''
         logger.debug('Notice an %s: %s' % (ziel, message))
         self.rawsend('NOTICE %s :%s' % (ziel, message))
 
-logstart(1024)
+if __name__ == '__main__':
+    if "--daemon" in sys.argv:
+        # wir machen einen daemon
+        if not (os.fork()):
+            # eigene session erstellen
+            os.setsid()
+            sys.stdin.close()
+            sys.stdout = open('/home/tiax/daemonlog','w')
+            sys.stderr = sys.stdout
+            if not (os.fork()):
+                ppid = os.getppid()
+                while (ppid != 1):
+                    time.sleep(0.5)
+                    ppid = os.getppid()
+            else:
+                os._exit(0)
+        else:
+            os.wait()
+            sys.exit()
+    logstart(1024)
+    GameSurge = ircverbindung(('irc.xwars.de',6667),['pwn','own','pwn0r'])
