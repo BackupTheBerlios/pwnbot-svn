@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 import logging
 import befehle
+import sys
 logger = logging.getLogger()
 
 # Events für den pwnbot
