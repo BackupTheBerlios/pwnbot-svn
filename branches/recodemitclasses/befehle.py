@@ -2,11 +2,11 @@
 # -*- coding: utf-8 -*-
 import xwars
 import logging
-
+֍
 logger = logging.getLogger('plugins')
 
 def _checkfortiax(event):
-    return event.quelle['ident'] == 'tiax' and event.quelle['host'] == 'victory-is-life.de'
+    return event.quelle['ident'] == 'tiax' and event.quelle['host'] == 'tiax.support.xwars'
 def quit(event):
     if _checkfortiax(event):
         event.parent.quit('Shutdown: %s' % ' '.join(event.befehl['argumente']))
@@ -41,9 +41,9 @@ def parse(event):
             try:
                 kampfbericht.analyze()
             except (IOError), meldung:
-                self.notice(event.quelle['nick'],meldung)
+                event.parent.notice(event.quelle['nick'],meldung)
             except AttributeError:
-                self.notice(event.quelle['nick'],'Ungültige URL')
+                event.parent.notice(event.quelle['nick'],'Ungültige URL')
             else:
                 kampfbericht.manipulate()
                 kampfbericht.save()
